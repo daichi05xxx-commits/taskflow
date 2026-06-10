@@ -1030,16 +1030,16 @@ function taskFullHtml(task, tStr) {
   }
   const catLabel = getCat(task.tag).label;
   const grpName  = task.group ? (getGroups().find(g => g.id === task.group)?.name || '') : '';
-  return `<div class="task-full">
-    <div class="task-check ${task.status==='done'?'checked':''}" onclick="toggleDone('${task.id}')">${task.status==='done'?'✓':''}</div>
+  return `<div class="task-full" onclick="openEditTask('${task.id}')" style="cursor:pointer;">
+    <div class="task-check ${task.status==='done'?'checked':''}" onclick="event.stopPropagation();toggleDone('${task.id}')">${task.status==='done'?'✓':''}</div>
     <div class="task-info">
       <div class="tname ${task.status==='done'?'done':''}">${escHtml(task.name)}</div>
       <div class="tmeta">${catLabel}${grpName?' · '+grpName:''} · 進捗 ${pct}%${task.deadline?' · 期限: '+task.deadline:''}</div>
     </div>
     <div class="dl-badge ${dlCls}">${dlLabel}</div>
     <div class="task-actions">
-      <button class="icon-btn" onclick="openEditTask('${task.id}')" title="編集"><i class="ti ti-edit"></i></button>
-      <button class="icon-btn del" onclick="deleteTask('${task.id}')" title="削除"><i class="ti ti-trash"></i></button>
+      <button class="icon-btn" onclick="event.stopPropagation();openEditTask('${task.id}')" title="編集"><i class="ti ti-edit"></i></button>
+      <button class="icon-btn del" onclick="event.stopPropagation();deleteTask('${task.id}')" title="削除"><i class="ti ti-trash"></i></button>
     </div>
   </div>`;
 }
