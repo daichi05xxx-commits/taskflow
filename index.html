@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TaskFlow — タスク進捗管理</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.29.0/dist/tabler-icons.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #378ADD;
+      --primary-dark: #185FA5;
+      --primary-light: #E6F1FB;
+      --primary-mid: #85B7EB;
+      --primary-pale: #B5D4F4;
+      --urgent: #E24B4A;
+      --urgent-dark: #A32D2D;
+      --warning: #EF9F27;
+      --warning-dark: #854F0B;
+      --warning-bg: #FAEEDA;
+      --bg: #f8fafc;
+      --bg-card: #ffffff;
+      --text-primary: #111827;
+      --text-secondary: #6B7280;
+      --border: #E5E7EB;
+      --sidebar-w: 210px;
+      --radius: 8px;
+      --radius-sm: 6px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif; background: var(--bg); color: var(--text-primary); }
+
+    /* ── Layout ── */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar { width: var(--sidebar-w); background: white; border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+    .content { flex: 1; overflow-y: auto; padding: 28px; }
+
+    /* ── Sidebar ── */
+    .logo { padding: 18px 16px; font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
+    .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+    .nav-item { padding: 9px 16px; font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.1s; border-right: 2px solid transparent; }
+    .nav-item:hover { background: var(--bg); color: var(--text-primary); }
+    .nav-item.active { background: var(--primary-light); color: var(--primary-dark); font-weight: 500; border-right-color: var(--primary); }
+    .nav-item i { font-size: 16px; }
+    .nav-body { flex: 1; padding: 10px 0; }
+    .sidebar-footer { padding: 12px 16px; font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border); }
+
+    /* ── Pages ── */
+    .page { display: none; }
+    .page.active { display: block; }
+    .page-header { margin-bottom: 24px; }
+    .page-title { font-size: 20px; font-weight: 600; }
+    .page-sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+    /* ── Card ── */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+
+    /* ── Metrics ── */
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .metric-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+    .metric-card.accent { border-top: 3px solid var(--primary); }
+    .metric-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .metric-value { font-size: 24px; font-weight: 600; }
+    .metric-sub { font-size: 11px; margin-top: 4px; }
+
+    /* ── Section title ── */
+    .section-title { font-size: 13px; font-weight: 500; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+    .section-title .link-btn { font-size: 12px; font-weight: 400; color: var(--primary); cursor: pointer; background: none; border: none; display: flex; align-items: center; gap: 2px; }
+    .section-title .link-btn:hover { text-decoration: underline; }
+
+    /* ── Dashboard grid ── */
+    .dash-2col { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+    .mb16 { margin-bottom: 16px; }
+
+    /* ── Schedule Timeline ── */
+    .schedule-scroll { overflow-y: auto; max-height: 310px; }
+    .schedule-inner { position: relative; }
+    .sched-empty { text-align: center; padding: 32px 16px; color: var(--text-secondary); font-size: 13px; }
+    .sched-empty i { font-size: 32px; opacity: 0.3; display: block; margin-bottom: 8px; }
+
+    /* ── Task cards (dashboard) ── */
+    .task-list { display: flex; flex-direction: column; gap: 8px; }
+    .task-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 16px; display: flex; align-items: center; gap: 12px; transition: border-color 0.1s; }
+    .task-card:hover { border-color: var(--primary-mid); }
+    .task-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .task-dot.done     { background: var(--primary); }
+    .task-dot.progress { background: var(--primary-mid); }
+    .task-dot.todo     { background: transparent; border: 1.5px solid var(--border); }
+    .task-name { font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task-name.done { color: var(--text-secondary); text-decoration: line-through; }
+    .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+    .tag.dev      { background: var(--primary-light); color: var(--primary-dark); }
+    .tag.priority { background: var(--warning-bg); color: var(--warning-dark); }
+    .tag.other    { background: #f3f4f6; color: var(--text-secondary); }
+    .tag.done-tag { background: #f3f4f6; color: var(--text-secondary); }
+    .pbar-wrap { width: 80px; height: 4px; background: var(--primary-light); border-radius: 2px; flex-shrink: 0; }
+    .pbar { height: 100%; border-radius: 2px; background: var(--primary); }
+    .task-pct { font-size: 11px; color: var(--text-secondary); min-width: 30px; text-align: right; }
+
+    /* ── Deadline list ── */
+    .deadline-list { display: flex; flex-direction: column; gap: 10px; }
+    .dl-item { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+    .dl-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .dl-dot.urgent { background: var(--urgent); }
+    .dl-dot.soon   { background: var(--warning); }
+    .dl-dot.ok     { background: var(--primary); }
+    .dl-name { flex: 1; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-date { color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
+
+    /* ── Weekly bar chart ── */
+    .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 100px; margin-top: 8px; }
+    .bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+    .bar-bg { width: 100%; flex: 1; display: flex; align-items: flex-end; }
+    .bar-fill { width: 100%; border-radius: 3px 3px 0 0; min-height: 4px; }
+    .bar-fill.today { background: var(--primary); }
+    .bar-fill.past  { background: var(--primary-pale); }
+    .bar-fill.future { background: #e9f0f5; }
+    .bar-lbl { font-size: 10px; color: var(--text-secondary); }
+
+    /* ── Tasks page ── */
+    .task-pg-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+    .search-box { flex: 1; display: flex; align-items: center; gap: 8px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 12px; }
+    .search-box input { border: none; outline: none; font-size: 13px; flex: 1; background: transparent; }
+    .search-box i { color: var(--text-secondary); font-size: 15px; }
+    .btn-primary { background: var(--primary); color: white; border: none; border-radius: var(--radius-sm); padding: 9px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .filter-row { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 12px; cursor: pointer; background: white; color: var(--text-secondary); }
+    .filter-btn.active { background: var(--primary-light); border-color: var(--primary); color: var(--primary-dark); font-weight: 500; }
+
+    /* ── Full task row ── */
+    .task-full { background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 13px 16px; display: flex; align-items: center; gap: 12px; transition: border-color 0.1s; }
+    .task-full:hover { border-color: var(--primary-mid); }
+    .task-check { width: 18px; height: 18px; border-radius: 4px; border: 1.5px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; user-select: none; }
+    .task-check.checked { background: var(--primary); border-color: var(--primary); color: white; font-size: 11px; }
+    .task-info { flex: 1; min-width: 0; }
+    .task-info .tname { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task-info .tname.done { color: var(--text-secondary); text-decoration: line-through; }
+    .task-info .tmeta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .dl-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
+    .dl-badge.urgent { background: #fee2e2; color: var(--urgent-dark); }
+    .dl-badge.soon   { background: var(--warning-bg); color: var(--warning-dark); }
+    .dl-badge.ok     { background: var(--primary-light); color: var(--primary-dark); }
+    .dl-badge.nodate { background: #f3f4f6; color: var(--text-secondary); }
+    .task-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s; }
+    .task-full:hover .task-actions { opacity: 1; }
+    .icon-btn { width: 28px; height: 28px; border: none; background: none; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 15px; }
+    .icon-btn:hover { background: var(--bg); color: var(--text-primary); }
+    .icon-btn.del:hover { color: var(--urgent); }
+
+    /* ── Progress page ── */
+    .report-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .stat-list { display: flex; flex-direction: column; }
+    .stat-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+    .stat-item:last-child { border-bottom: none; }
+    .stat-label { font-size: 13px; color: var(--text-secondary); }
+    .stat-value { font-size: 15px; font-weight: 600; }
+
+    /* ── Calendar ── */
+    .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .cal-nav { display: flex; gap: 8px; }
+    .cal-nav-btn { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text-secondary); }
+    .cal-nav-btn:hover { background: var(--bg); }
+    .cal-today-btn { padding: 0 12px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: white; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+    .cal-today-btn:hover { background: var(--bg); }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .cal-day-hdr { text-align: center; font-size: 11px; font-weight: 600; color: var(--text-secondary); padding: 4px; }
+    .cal-day { min-height: 76px; background: white; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; cursor: pointer; overflow: hidden; }
+    .cal-day:hover { border-color: var(--primary-mid); }
+    .cal-day.today { border-color: var(--primary); }
+    .cal-day.other { opacity: 0.4; }
+    .cal-day-num { font-size: 12px; font-weight: 500; margin-bottom: 3px; }
+    .cal-day.today .cal-day-num { color: var(--primary); font-weight: 700; }
+    .cal-ev { font-size: 10px; padding: 1px 4px; border-radius: 3px; background: var(--primary-light); color: var(--primary-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+    .cal-ev.urgent-ev { background: #fee2e2; color: var(--urgent-dark); }
+
+    /* ── Settings ── */
+    .settings-card { margin-bottom: 16px; }
+    .settings-card h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f9fafb; }
+    .settings-row:last-child { border-bottom: none; }
+    .settings-label { font-size: 13px; }
+    .settings-sub { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .btn-ghost { padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; background: white; display: flex; align-items: center; gap: 4px; }
+    .btn-ghost:hover { background: var(--bg); }
+    .btn-danger { background: #fee2e2; color: var(--urgent-dark); border: none; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 12px; cursor: pointer; }
+    .btn-danger:hover { background: #fecaca; }
+
+    /* ── Modal ── */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.28); display: none; align-items: center; justify-content: center; z-index: 100; }
+    .overlay.open { display: flex; }
+    .modal { background: white; border-radius: var(--radius); padding: 24px; width: 420px; max-width: 90vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
+    .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; display: block; }
+    .form-input, .form-select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; outline: none; background: white; transition: border-color 0.1s; }
+    .form-input:focus, .form-select:focus { border-color: var(--primary); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    input[type=range] { width: 100%; accent-color: var(--primary); margin-top: 4px; }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 36px 16px; color: var(--text-secondary); }
+    .empty i { font-size: 36px; opacity: 0.25; display: block; margin-bottom: 10px; }
+    .empty p { font-size: 13px; }
+
+    /* ── Toast ── */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #111827; color: white; padding: 10px 16px; border-radius: var(--radius-sm); font-size: 13px; z-index: 200; opacity: 0; transform: translateY(6px); transition: all 0.2s; pointer-events: none; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── Sidebar ── -->
+  <div class="sidebar">
+    <div class="logo"><div class="logo-dot"></div>TaskFlow</div>
+    <div class="nav-body">
+      <div class="nav-item active" onclick="navigate('dashboard')"><i class="ti ti-layout-dashboard"></i>ダッシュボード</div>
+      <div class="nav-item" onclick="navigate('tasks')"><i class="ti ti-checklist"></i>タスク一覧</div>
+      <div class="nav-item" onclick="navigate('report')"><i class="ti ti-chart-bar"></i>進捗レポート</div>
+      <div class="nav-item" onclick="navigate('calendar')"><i class="ti ti-calendar"></i>カレンダー</div>
+      <div class="nav-item" onclick="navigate('settings')"><i class="ti ti-settings"></i>設定</div>
+    </div>
+    <div class="sidebar-footer">TaskFlow v1.0</div>
+  </div>
+
+  <!-- ── Content ── -->
+  <div class="content">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div class="page-title">ダッシュボード</div>
+        <div class="page-sub" id="dashDate"></div>
+      </div>
+      <div class="metrics" id="metrics"></div>
+      <div class="dash-2col">
+        <div class="card">
+          <div class="section-title">
+            今日のスケジュール
+            <button class="link-btn" onclick="openAddSchedule()"><i class="ti ti-plus"></i> 追加</button>
+          </div>
+          <div class="schedule-scroll"><div id="scheduleTimeline"></div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">
+            直近の締め切り
+            <button class="link-btn" onclick="navigate('tasks')">タスクへ →</button>
+          </div>
+          <div class="deadline-list" id="deadlineList"></div>
+        </div>
+      </div>
+      <div class="card mb16">
+        <div class="section-title">
+          進行中のタスク
+          <button class="link-btn" onclick="navigate('tasks')">すべて見る →</button>
+        </div>
+        <div class="task-list" id="dashTaskList"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">週別完了数</div>
+        <div class="bar-chart" id="weeklyChart"></div>
+      </div>
+    </div>
+
+    <!-- ══ TASKS ══ -->
+    <div id="page-tasks" class="page">
+      <div class="page-header">
+        <div class="page-title">タスク一覧</div>
+        <div class="page-sub">すべてのタスクを管理する</div>
+      </div>
+      <div class="task-pg-toolbar">
+        <div class="search-box">
+          <i class="ti ti-search"></i>
+          <input type="text" id="taskSearch" placeholder="タスクを検索..." oninput="renderTasksPage()">
+        </div>
+        <button class="btn-primary" onclick="openAddTask()"><i class="ti ti-plus"></i> タスクを追加</button>
+      </div>
+      <div class="filter-row">
+        <button class="filter-btn active" data-filter="all"     onclick="setFilter(this)">すべて</button>
+        <button class="filter-btn"        data-filter="todo"    onclick="setFilter(this)">未着手</button>
+        <button class="filter-btn"        data-filter="progress"onclick="setFilter(this)">進行中</button>
+        <button class="filter-btn"        data-filter="done"    onclick="setFilter(this)">完了</button>
+        <button class="filter-btn"        data-filter="overdue" onclick="setFilter(this)">期限超過</button>
+      </div>
+      <div id="taskListFull" class="task-list"></div>
+    </div>
+
+    <!-- ══ REPORT ══ -->
+    <div id="page-report" class="page">
+      <div class="page-header">
+        <div class="page-title">進捗レポート</div>
+        <div class="page-sub">タスクの進捗状況を確認する</div>
+      </div>
+      <div class="report-grid">
+        <div class="card">
+          <div class="section-title">週間完了数</div>
+          <canvas id="reportWeekChart" height="180"></canvas>
+        </div>
+        <div class="card">
+          <div class="section-title">サマリー</div>
+          <div class="stat-list" id="statList"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">ステータス別タスク数</div>
+        <div style="max-width:340px; margin: 0 auto;">
+          <canvas id="statusChart" height="200"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ CALENDAR ══ -->
+    <div id="page-calendar" class="page">
+      <div class="page-header">
+        <div class="page-title">カレンダー</div>
+        <div class="page-sub">締め切り日を月別で確認する</div>
+      </div>
+      <div class="card">
+        <div class="cal-header">
+          <div id="calTitle" style="font-size:15px; font-weight:600;"></div>
+          <div class="cal-nav">
+            <button class="cal-nav-btn" onclick="calPrev()"><i class="ti ti-chevron-left"></i></button>
+            <button class="cal-today-btn" onclick="calToday()">今日</button>
+            <button class="cal-nav-btn" onclick="calNext()"><i class="ti ti-chevron-right"></i></button>
+          </div>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+      </div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div id="page-settings" class="page">
+      <div class="page-header">
+        <div class="page-title">設定</div>
+        <div class="page-sub">アプリの設定とデータを管理する</div>
+      </div>
+      <div class="card settings-card">
+        <h3>一般</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">ユーザー名</div>
+            <div class="settings-sub">ダッシュボードに表示する名前</div>
+          </div>
+          <input type="text" id="settingUserName" class="form-input" style="width:200px;" placeholder="名前を入力" oninput="saveSettings()">
+        </div>
+      </div>
+      <div class="card settings-card">
+        <h3>データ管理</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">サンプルデータを読み込む</div>
+            <div class="settings-sub">デモ用のタスクとスケジュールを追加します</div>
+          </div>
+          <button class="btn-primary" onclick="loadSampleData()">サンプルを追加</button>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">データをエクスポート</div>
+            <div class="settings-sub">すべてのデータをJSONでダウンロードします</div>
+          </div>
+          <button class="btn-ghost" onclick="exportData()"><i class="ti ti-download"></i> エクスポート</button>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">データをリセット</div>
+            <div class="settings-sub">すべてのタスク・スケジュールを削除します（元に戻せません）</div>
+          </div>
+          <button class="btn-danger" onclick="resetData()">リセット</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /app -->
+
+<!-- ── Add/Edit Task Modal ── -->
+<div class="overlay" id="taskModal">
+  <div class="modal">
+    <h3 id="taskModalTitle">タスクを追加</h3>
+    <input type="hidden" id="editTaskId">
+    <div class="form-group">
+      <label class="form-label">タスク名 *</label>
+      <input type="text" id="taskName" class="form-input" placeholder="タスク名を入力...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">カテゴリ</label>
+        <select id="taskTag" class="form-select">
+          <option value="dev">開発</option>
+          <option value="priority">優先</option>
+          <option value="other">その他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ステータス</label>
+        <select id="taskStatus" class="form-select">
+          <option value="todo">未着手</option>
+          <option value="progress">進行中</option>
+          <option value="done">完了</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">進捗: <span id="progressLabel">0</span>%</label>
+      <input type="range" id="taskProgress" min="0" max="100" value="0" oninput="document.getElementById('progressLabel').textContent=this.value">
+    </div>
+    <div class="form-group">
+      <label class="form-label">期限</label>
+      <input type="date" id="taskDeadline" class="form-input">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('taskModal')">キャンセル</button>
+      <button class="btn-primary" onclick="saveTask()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Schedule Modal ── -->
+<div class="overlay" id="schedModal">
+  <div class="modal">
+    <h3>スケジュールを追加</h3>
+    <div class="form-group">
+      <label class="form-label">タイトル *</label>
+      <input type="text" id="schedTitle" class="form-input" placeholder="イベント名を入力...">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">開始時刻</label>
+        <input type="time" id="schedTime" class="form-input" value="09:00">
+      </div>
+      <div class="form-group">
+        <label class="form-label">所要時間</label>
+        <select id="schedDuration" class="form-select">
+          <option value="30">30分</option>
+          <option value="60" selected>1時間</option>
+          <option value="90">1時間30分</option>
+          <option value="120">2時間</option>
+          <option value="180">3時間</option>
+          <option value="240">4時間</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">日付</label>
+      <input type="date" id="schedDate" class="form-input">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('schedModal')">キャンセル</button>
+      <button class="btn-primary" onclick="saveSchedule()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── Storage ──────────────────────────────────────────────────────────────────
+const KEYS = { tasks: 'tf_tasks', schedule: 'tf_sched', settings: 'tf_settings' };
+const dbGet = (k, d = []) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const dbSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+const getTasks    = ()  => dbGet(KEYS.tasks);
+const setTasks    = (v) => dbSet(KEYS.tasks, v);
+const getSched    = ()  => dbGet(KEYS.schedule);
+const setSched    = (v) => dbSet(KEYS.schedule, v);
+const getSettings = ()  => dbGet(KEYS.settings, {});
+const setSettings = (v) => dbSet(KEYS.settings, v);
+
+const uid     = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const todayStr= () => new Date().toISOString().split('T')[0];
+const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ─── Routing ──────────────────────────────────────────────────────────────────
+const PAGES = ['dashboard','tasks','report','calendar','settings'];
+let currentPage = 'dashboard';
+let calYear, calMonth;
+let reportWeekChart = null, statusChart = null;
+
+function navigate(page) {
+  PAGES.forEach(p => {
+    document.getElementById(`page-${p}`).classList.toggle('active', p === page);
+    document.querySelectorAll('.nav-item')[PAGES.indexOf(p)].classList.toggle('active', p === page);
+  });
+  currentPage = page;
+  renderPage(page);
+}
+
+function renderPage(page) {
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'tasks')     renderTasksPage();
+  if (page === 'report')    renderReport();
+  if (page === 'calendar')  renderCalendar();
+  if (page === 'settings')  renderSettings();
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  // Date header
+  const d = new Date();
+  document.getElementById('dashDate').textContent =
+    d.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+
+  renderMetrics();
+  renderScheduleTimeline();
+  renderDeadlines();
+  renderDashTasks();
+  renderWeeklyChart();
+}
+
+function renderMetrics() {
+  const tasks = getTasks();
+  const tStr  = todayStr();
+  const total    = tasks.length;
+  const done     = tasks.filter(t => t.status === 'done').length;
+  const inProg   = tasks.filter(t => t.status === 'progress').length;
+  const overdue  = tasks.filter(t => t.deadline && t.deadline < tStr && t.status !== 'done').length;
+  const doneRate = total ? Math.round(done / total * 100) : 0;
+
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric-card accent">
+      <div class="metric-label">総タスク数</div>
+      <div class="metric-value">${total}</div>
+      <div class="metric-sub" style="color:var(--text-secondary);">登録済み</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">完了</div>
+      <div class="metric-value" style="color:var(--primary-dark);">${done}</div>
+      <div class="metric-sub" style="color:var(--text-secondary);">${doneRate}%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">進行中</div>
+      <div class="metric-value">${inProg}</div>
+      <div class="metric-sub" style="color:var(--text-secondary);">${total ? Math.round(inProg/total*100) : 0}%</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">期限超過</div>
+      <div class="metric-value" style="color:${overdue > 0 ? 'var(--urgent-dark)' : 'inherit'};">${overdue}</div>
+      <div class="metric-sub" style="color:${overdue > 0 ? 'var(--urgent)' : 'var(--text-secondary)'};">${overdue > 0 ? '要対応' : '問題なし'}</div>
+    </div>`;
+}
+
+function renderScheduleTimeline() {
+  const tStr  = todayStr();
+  const evs   = getSched().filter(e => e.date === tStr).sort((a,b) => a.startTime.localeCompare(b.startTime));
+  const now   = new Date();
+  const curH  = now.getHours();
+  const curM  = now.getMinutes();
+  const START = 8, END = 21, HR_PX = 56;
+
+  if (evs.length === 0 && (curH < START || curH >= END)) {
+    document.getElementById('scheduleTimeline').innerHTML =
+      `<div class="sched-empty"><i class="ti ti-calendar-event"></i>今日のスケジュールがありません<br><small style="font-size:11px;">右上の「追加」ボタンから追加できます</small></div>`;
+    return;
+  }
+
+  const totalH = (END - START) * HR_PX;
+  let html = `<div style="position:relative;height:${totalH}px;">`;
+
+  for (let h = START; h <= END; h++) {
+    const top = (h - START) * HR_PX;
+    const isCur = h === curH;
+    html += `<div style="position:absolute;top:${top}px;left:0;right:0;height:${HR_PX}px;border-top:1px solid ${isCur ? 'var(--primary)' : 'var(--border)'};display:flex;">
+      <span style="width:44px;font-size:11px;color:${isCur ? 'var(--primary)' : 'var(--text-secondary)'};font-weight:${isCur ? '600' : '400'};padding:3px 6px 0 0;text-align:right;flex-shrink:0;">${String(h).padStart(2,'0')}:00</span>
+      <div style="flex:1;border-left:1px solid #f0f0f0;"></div>
+    </div>`;
+  }
+
+  evs.forEach(ev => {
+    const [h, m] = ev.startTime.split(':').map(Number);
+    if (h < START || h >= END) return;
+    const topPx = (h - START + m / 60) * HR_PX;
+    const hPx   = Math.max((ev.duration / 60) * HR_PX - 4, 22);
+    html += `<div style="position:absolute;top:${topPx+2}px;left:52px;right:8px;height:${hPx}px;
+      background:var(--primary-light);border-left:3px solid var(--primary);border-radius:4px;
+      padding:3px 24px 3px 8px;overflow:hidden;box-sizing:border-box;">
+      <div style="font-size:12px;font-weight:500;color:var(--primary-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${ev.startTime} ${escHtml(ev.title)}</div>
+      ${hPx > 34 ? `<div style="font-size:10px;color:var(--text-secondary);">${ev.duration}分</div>` : ''}
+      <button onclick="deleteSchedule('${ev.id}')" style="position:absolute;top:2px;right:4px;background:none;border:none;cursor:pointer;font-size:15px;color:var(--text-secondary);line-height:1;opacity:0.6;" title="削除">×</button>
+    </div>`;
+  });
+
+  // Current time line
+  if (curH >= START && curH < END) {
+    const topPx = (curH - START + curM / 60) * HR_PX;
+    html += `<div style="position:absolute;top:${topPx}px;left:44px;right:0;height:2px;background:var(--urgent);z-index:3;">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--urgent);margin-top:-3px;margin-left:-4px;"></div>
+    </div>`;
+  }
+
+  html += '</div>';
+  document.getElementById('scheduleTimeline').innerHTML = html;
+}
+
+function renderDeadlines() {
+  const tStr = todayStr();
+  const tasks = getTasks()
+    .filter(t => t.deadline && t.status !== 'done')
+    .sort((a, b) => a.deadline.localeCompare(b.deadline))
+    .slice(0, 5);
+
+  if (tasks.length === 0) {
+    document.getElementById('deadlineList').innerHTML = '<div class="empty" style="padding:20px 0;"><p>期限のあるタスクがありません</p></div>';
+    return;
+  }
+
+  document.getElementById('deadlineList').innerHTML = tasks.map(task => {
+    const diff = Math.ceil((new Date(task.deadline) - new Date(tStr)) / 86400000);
+    let cls = 'ok', label = task.deadline;
+    if (diff < 0)      { cls = 'urgent'; label = `${Math.abs(diff)}日超過`; }
+    else if (diff === 0) { cls = 'urgent'; label = '今日'; }
+    else if (diff === 1) { cls = 'soon';   label = '明日'; }
+    else if (diff <= 3)  { cls = 'soon';   label = `${diff}日後`; }
+    return `<div class="dl-item">
+      <div class="dl-dot ${cls}"></div>
+      <div class="dl-name">${escHtml(task.name)}</div>
+      <div class="dl-date">${label}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderDashTasks() {
+  const tasks = getTasks().filter(t => t.status !== 'done').slice(0, 4);
+  if (tasks.length === 0) {
+    document.getElementById('dashTaskList').innerHTML = '<div class="empty" style="padding:16px 0;"><p>進行中のタスクがありません</p></div>';
+    return;
+  }
+  document.getElementById('dashTaskList').innerHTML = tasks.map(t => taskCardHtml(t)).join('');
+}
+
+function taskCardHtml(t) {
+  const tagMap = { dev:'開発', priority:'優先', other:'その他' };
+  const pct = t.status === 'done' ? 100 : (t.progress || 0);
+  return `<div class="task-card">
+    <div class="task-dot ${t.status}"></div>
+    <div class="task-name ${t.status === 'done' ? 'done' : ''}">${escHtml(t.name)}</div>
+    <div class="tag ${t.status === 'done' ? 'done-tag' : t.tag}">${t.status === 'done' ? '完了' : (tagMap[t.tag] || 'その他')}</div>
+    <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;"></div></div>
+    <div class="task-pct">${pct}%</div>
+  </div>`;
+}
+
+function renderWeeklyChart() {
+  const days   = ['月','火','水','木','金','土','日'];
+  const todayDow = (new Date().getDay() + 6) % 7;
+  // Demo completion counts — replace with tracked data if desired
+  const counts = [3, 5, 2, 7, 4, 1, 0];
+  const maxC   = Math.max(...counts, 1);
+
+  document.getElementById('weeklyChart').innerHTML = days.map((d, i) => {
+    const cls = i === todayDow ? 'today' : (i < todayDow ? 'past' : 'future');
+    return `<div class="bar-col">
+      <div class="bar-bg"><div class="bar-fill ${cls}" style="height:${(counts[i]/maxC*100)}%;"></div></div>
+      <div class="bar-lbl">${d}</div>
+    </div>`;
+  }).join('');
+}
+
+// ─── Tasks Page ───────────────────────────────────────────────────────────────
+let currentFilter = 'all';
+
+function setFilter(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.filter;
+  renderTasksPage();
+}
+
+function renderTasksPage() {
+  const search   = (document.getElementById('taskSearch')?.value || '').toLowerCase();
+  const tStr     = todayStr();
+  let tasks      = getTasks();
+
+  if (search)                      tasks = tasks.filter(t => t.name.toLowerCase().includes(search));
+  if (currentFilter === 'todo')    tasks = tasks.filter(t => t.status === 'todo');
+  if (currentFilter === 'progress')tasks = tasks.filter(t => t.status === 'progress');
+  if (currentFilter === 'done')    tasks = tasks.filter(t => t.status === 'done');
+  if (currentFilter === 'overdue') tasks = tasks.filter(t => t.deadline && t.deadline < tStr && t.status !== 'done');
+
+  const el = document.getElementById('taskListFull');
+  if (!el) return;
+  if (tasks.length === 0) {
+    el.innerHTML = `<div class="empty"><i class="ti ti-checklist"></i><p>タスクがありません</p></div>`;
+    return;
+  }
+
+  const tagLabels = { dev:'開発', priority:'優先', other:'その他' };
+  el.innerHTML = tasks.map(task => {
+    const pct  = task.status === 'done' ? 100 : (task.progress || 0);
+    const diff = task.deadline ? Math.ceil((new Date(task.deadline) - new Date(tStr)) / 86400000) : null;
+    let dlCls = 'nodate', dlLabel = '期限なし';
+    if (diff !== null) {
+      if (diff < 0)      { dlCls = 'urgent'; dlLabel = `${Math.abs(diff)}日超過`; }
+      else if (diff === 0) { dlCls = 'urgent'; dlLabel = '今日'; }
+      else if (diff <= 3)  { dlCls = 'soon';   dlLabel = `${diff}日後`; }
+      else                 { dlCls = 'ok';     dlLabel = task.deadline; }
+    }
+    return `<div class="task-full">
+      <div class="task-check ${task.status === 'done' ? 'checked' : ''}" onclick="toggleDone('${task.id}')">${task.status === 'done' ? '✓' : ''}</div>
+      <div class="task-info">
+        <div class="tname ${task.status === 'done' ? 'done' : ''}">${escHtml(task.name)}</div>
+        <div class="tmeta">${tagLabels[task.tag] || 'その他'} · 進捗 ${pct}%${task.deadline ? ' · 期限: ' + task.deadline : ''}</div>
+      </div>
+      <div class="dl-badge ${dlCls}">${dlLabel}</div>
+      <div class="task-actions">
+        <button class="icon-btn" onclick="openEditTask('${task.id}')" title="編集"><i class="ti ti-edit"></i></button>
+        <button class="icon-btn del" onclick="deleteTask('${task.id}')" title="削除"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleDone(id) {
+  const tasks = getTasks().map(t => {
+    if (t.id !== id) return t;
+    const next = t.status === 'done' ? 'todo' : 'done';
+    return { ...t, status: next, progress: next === 'done' ? 100 : t.progress };
+  });
+  setTasks(tasks);
+  renderTasksPage();
+  renderMetrics();
+}
+
+function deleteTask(id) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  setTasks(getTasks().filter(t => t.id !== id));
+  renderPage(currentPage);
+  toast('タスクを削除しました');
+}
+
+// ─── Task Modal ───────────────────────────────────────────────────────────────
+function openAddTask() {
+  document.getElementById('taskModalTitle').textContent = 'タスクを追加';
+  document.getElementById('editTaskId').value  = '';
+  document.getElementById('taskName').value    = '';
+  document.getElementById('taskTag').value     = 'dev';
+  document.getElementById('taskStatus').value  = 'todo';
+  document.getElementById('taskProgress').value= 0;
+  document.getElementById('progressLabel').textContent = '0';
+  document.getElementById('taskDeadline').value= '';
+  openModal('taskModal');
+}
+
+function openEditTask(id) {
+  const t = getTasks().find(t => t.id === id);
+  if (!t) return;
+  document.getElementById('taskModalTitle').textContent = 'タスクを編集';
+  document.getElementById('editTaskId').value  = id;
+  document.getElementById('taskName').value    = t.name;
+  document.getElementById('taskTag').value     = t.tag;
+  document.getElementById('taskStatus').value  = t.status;
+  document.getElementById('taskProgress').value= t.progress || 0;
+  document.getElementById('progressLabel').textContent = t.progress || 0;
+  document.getElementById('taskDeadline').value= t.deadline || '';
+  openModal('taskModal');
+}
+
+function saveTask() {
+  const name = document.getElementById('taskName').value.trim();
+  if (!name) { alert('タスク名を入力してください'); return; }
+
+  const data = {
+    name,
+    tag:      document.getElementById('taskTag').value,
+    status:   document.getElementById('taskStatus').value,
+    progress: parseInt(document.getElementById('taskProgress').value),
+    deadline: document.getElementById('taskDeadline').value || null,
+  };
+
+  const editId = document.getElementById('editTaskId').value;
+  let tasks = getTasks();
+  if (editId) {
+    tasks = tasks.map(t => t.id === editId ? { ...t, ...data } : t);
+    toast('タスクを更新しました');
+  } else {
+    tasks.push({ ...data, id: uid(), createdAt: todayStr() });
+    toast('タスクを追加しました');
+  }
+  setTasks(tasks);
+  closeModal('taskModal');
+  renderPage(currentPage);
+}
+
+// ─── Schedule ─────────────────────────────────────────────────────────────────
+function openAddSchedule() {
+  document.getElementById('schedTitle').value   = '';
+  document.getElementById('schedTime').value    = '09:00';
+  document.getElementById('schedDuration').value= '60';
+  document.getElementById('schedDate').value    = todayStr();
+  openModal('schedModal');
+}
+
+function saveSchedule() {
+  const title = document.getElementById('schedTitle').value.trim();
+  if (!title) { alert('タイトルを入力してください'); return; }
+  const ev = {
+    id:        uid(),
+    title,
+    startTime: document.getElementById('schedTime').value,
+    duration:  parseInt(document.getElementById('schedDuration').value),
+    date:      document.getElementById('schedDate').value,
+  };
+  setSched([...getSched(), ev]);
+  closeModal('schedModal');
+  renderScheduleTimeline();
+  toast('スケジュールを追加しました');
+}
+
+function deleteSchedule(id) {
+  setSched(getSched().filter(e => e.id !== id));
+  renderScheduleTimeline();
+  toast('スケジュールを削除しました');
+}
+
+// ─── Report ───────────────────────────────────────────────────────────────────
+function renderReport() {
+  const tasks  = getTasks();
+  const tStr   = todayStr();
+  const total  = tasks.length;
+  const done   = tasks.filter(t => t.status === 'done').length;
+  const prog   = tasks.filter(t => t.status === 'progress').length;
+  const todo   = tasks.filter(t => t.status === 'todo').length;
+  const over   = tasks.filter(t => t.deadline && t.deadline < tStr && t.status !== 'done').length;
+  const avgPct = total ? Math.round(tasks.reduce((s, t) => s + (t.progress || 0), 0) / total) : 0;
+
+  document.getElementById('statList').innerHTML = `
+    <div class="stat-item"><span class="stat-label">総タスク数</span><span class="stat-value">${total}</span></div>
+    <div class="stat-item"><span class="stat-label">完了</span><span class="stat-value" style="color:var(--primary);">${done}</span></div>
+    <div class="stat-item"><span class="stat-label">進行中</span><span class="stat-value">${prog}</span></div>
+    <div class="stat-item"><span class="stat-label">未着手</span><span class="stat-value">${todo}</span></div>
+    <div class="stat-item"><span class="stat-label">期限超過</span><span class="stat-value" style="color:${over > 0 ? 'var(--urgent)' : 'inherit'}">${over}</span></div>
+    <div class="stat-item"><span class="stat-label">平均進捗率</span><span class="stat-value">${avgPct}%</span></div>`;
+
+  const days = ['月','火','水','木','金','土','日'];
+  const todayDow = (new Date().getDay() + 6) % 7;
+  const weekCounts = [3, 5, 2, 7, 4, 1, 0];
+
+  if (reportWeekChart) reportWeekChart.destroy();
+  reportWeekChart = new Chart(document.getElementById('reportWeekChart'), {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: [{ data: weekCounts, backgroundColor: days.map((_,i) => i === todayDow ? '#378ADD' : '#B5D4F4'), borderRadius: 4 }]
+    },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } }
+  });
+
+  if (statusChart) statusChart.destroy();
+  statusChart = new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['完了', '進行中', '未着手'],
+      datasets: [{ data: [done, prog, todo], backgroundColor: ['#378ADD','#85B7EB','#E5E7EB'], borderWidth: 0 }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'right' } } }
+  });
+}
+
+// ─── Calendar ─────────────────────────────────────────────────────────────────
+function renderCalendar() {
+  const tStr  = todayStr();
+  const now   = new Date();
+  if (calYear == null) { calYear = now.getFullYear(); calMonth = now.getMonth(); }
+
+  const mNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  document.getElementById('calTitle').textContent = `${calYear}年 ${mNames[calMonth]}`;
+
+  const tasks   = getTasks();
+  const taskMap = {};
+  tasks.forEach(t => {
+    if (t.deadline) { taskMap[t.deadline] = taskMap[t.deadline] || []; taskMap[t.deadline].push(t); }
+  });
+
+  const dayHdrs  = ['月','火','水','木','金','土','日'];
+  const first    = new Date(calYear, calMonth, 1);
+  const firstDow = (first.getDay() + 6) % 7;
+  const daysInM  = new Date(calYear, calMonth + 1, 0).getDate();
+  const daysInP  = new Date(calYear, calMonth, 0).getDate();
+
+  let html = dayHdrs.map(d => `<div class="cal-day-hdr">${d}</div>`).join('');
+
+  for (let i = firstDow - 1; i >= 0; i--)
+    html += `<div class="cal-day other"><div class="cal-day-num">${daysInP - i}</div></div>`;
+
+  for (let d = 1; d <= daysInM; d++) {
+    const ds   = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isT  = ds === tStr;
+    const evts = taskMap[ds] || [];
+    html += `<div class="cal-day${isT ? ' today' : ''}">
+      <div class="cal-day-num">${d}</div>
+      ${evts.slice(0,3).map(t => {
+        const cls = (t.deadline < tStr && t.status !== 'done') ? 'urgent-ev' : '';
+        return `<div class="cal-ev ${cls}">${escHtml(t.name)}</div>`;
+      }).join('')}
+      ${evts.length > 3 ? `<div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">+${evts.length - 3}件</div>` : ''}
+    </div>`;
+  }
+
+  const total = Math.ceil((firstDow + daysInM) / 7) * 7;
+  for (let d = 1; d <= total - firstDow - daysInM; d++)
+    html += `<div class="cal-day other"><div class="cal-day-num">${d}</div></div>`;
+
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+function calPrev()  { if (--calMonth < 0)  { calMonth = 11; calYear--; } renderCalendar(); }
+function calNext()  { if (++calMonth > 11) { calMonth = 0;  calYear++; } renderCalendar(); }
+function calToday() { const n = new Date(); calYear = n.getFullYear(); calMonth = n.getMonth(); renderCalendar(); }
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+function renderSettings() {
+  document.getElementById('settingUserName').value = getSettings().userName || '';
+}
+function saveSettings() {
+  const s = getSettings();
+  s.userName = document.getElementById('settingUserName').value;
+  setSettings(s);
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr); d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+
+function loadSampleData() {
+  const t = todayStr();
+  const sampleTasks = [
+    { id: uid(), name: 'ポートフォリオサイトのUI設計',      tag:'dev',      status:'progress', progress:70,  deadline: addDays(t, 10), createdAt: t },
+    { id: uid(), name: 'Bubbleチャットアプリのバグ修正',     tag:'priority', status:'progress', progress:45,  deadline: addDays(t, 3),  createdAt: t },
+    { id: uid(), name: 'GitHubアカウント設定・README作成',  tag:'dev',      status:'done',     progress:100, deadline: addDays(t,-2),  createdAt: addDays(t,-7) },
+    { id: uid(), name: '統計レポート提出',                   tag:'other',    status:'todo',     progress:0,   deadline: addDays(t, 1),  createdAt: t },
+    { id: uid(), name: 'Figmaデザイン提出',                 tag:'dev',      status:'todo',     progress:0,   deadline: addDays(t, 3),  createdAt: t },
+    { id: uid(), name: 'SaaS企画書',                        tag:'other',    status:'todo',     progress:0,   deadline: addDays(t, 18), createdAt: t },
+  ];
+  const sampleSched = [
+    { id: uid(), title:'朝のスタンドアップ',     startTime:'09:00', duration:30,  date:t },
+    { id: uid(), title:'ポートフォリオ作業',     startTime:'10:00', duration:120, date:t },
+    { id: uid(), title:'ランチ',                startTime:'12:00', duration:60,  date:t },
+    { id: uid(), title:'バグ修正作業',           startTime:'14:00', duration:90,  date:t },
+    { id: uid(), title:'統計レポート確認',       startTime:'16:00', duration:60,  date:t },
+  ];
+  setTasks([...getTasks(), ...sampleTasks]);
+  setSched([...getSched(), ...sampleSched]);
+  renderPage(currentPage);
+  toast('サンプルデータを追加しました');
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify({ tasks: getTasks(), schedule: getSched(), settings: getSettings() }, null, 2)], { type:'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `taskflow-${todayStr()}.json`;
+  a.click();
+}
+
+function resetData() {
+  if (!confirm('すべてのデータを削除しますか？\nこの操作は元に戻せません。')) return;
+  Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+  renderPage(currentPage);
+  toast('データをリセットしました');
+}
+
+// ─── Modal helpers ────────────────────────────────────────────────────────────
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  const now = new Date();
+  calYear  = now.getFullYear();
+  calMonth = now.getMonth();
+  renderDashboard();
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape')
+      document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
+  });
+});
+</script>
+</body>
+</html>
