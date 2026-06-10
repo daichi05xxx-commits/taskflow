@@ -217,6 +217,20 @@
     .cat-preview { display: flex; align-items: center; gap: 8px; }
     .default-badge { font-size: 10px; color: var(--text-secondary); background: #f3f4f6; padding: 1px 6px; border-radius: 8px; }
 
+    /* ── 完了セクション ── */
+    .done-section-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 0 6px; margin-top: 12px; cursor: pointer; user-select: none; }
+    .done-section-hdr .done-section-label { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+    .done-section-hdr .done-section-count { font-size: 11px; color: var(--primary-dark); background: var(--primary-light); padding: 1px 7px; border-radius: 10px; }
+    .done-section-hdr .group-header-arrow { font-size: 12px; color: var(--text-secondary); margin-left: auto; transition: transform 0.2s; }
+    .done-section-hdr.collapsed .group-header-arrow { transform: rotate(-90deg); }
+    .btn-undo { padding: 4px 10px; background: #f3f4f6; color: var(--text-secondary); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 4px; white-space: nowrap; flex-shrink: 0; }
+    .btn-undo:hover { background: var(--primary-light); color: var(--primary-dark); border-color: var(--primary); }
+    /* TODOの完了セクション */
+    .todo-done-hdr { display: flex; align-items: center; gap: 8px; padding: 8px 4px 6px; margin-top: 6px; cursor: pointer; user-select: none; border-top: 1px solid var(--border); }
+    .todo-done-hdr span { font-size: 12px; color: var(--text-secondary); flex: 1; }
+    .todo-done-hdr .group-header-arrow { font-size: 11px; color: var(--text-secondary); transition: transform 0.2s; }
+    .todo-done-hdr.collapsed .group-header-arrow { transform: rotate(-90deg); }
+
     /* ── Modal ── */
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.28); display: none; align-items: center; justify-content: center; z-index: 100; }
     .overlay.open { display: flex; }
@@ -854,12 +868,38 @@ function renderTodoList() {
     el.innerHTML = '<div class="todo-empty">今日のTODOがありません。上の入力欄から追加してください。</div>';
     return;
   }
-  el.innerHTML = todos.map(todo => `
+  const undone = todos.filter(t => !t.done);
+  const done2  = todos.filter(t => t.done);
+  const todoDoneCollapsed = collapsedGroups.has('__todo_done__');
+
+  let html = '';
+  if (undone.length === 0 && done2.length > 0) {
+    html += '<div class="todo-empty" style="padding:8px 0;">未完了のTODOはありません</div>';
+  }
+  html += undone.map(todo => `
     <div class="todo-item">
-      <div class="todo-cb ${todo.done ? 'done' : ''}" onclick="toggleTodo('${todo.id}')">${todo.done ? '✓' : ''}</div>
-      <span class="todo-text ${todo.done ? 'done' : ''}">${escHtml(todo.text)}</span>
+      <div class="todo-cb" onclick="toggleTodo('${todo.id}')"></div>
+      <span class="todo-text">${escHtml(todo.text)}</span>
       <button class="todo-del" onclick="deleteTodo('${todo.id}')" title="削除">×</button>
     </div>`).join('');
+
+  if (done2.length > 0) {
+    html += `<div class="todo-done-hdr ${todoDoneCollapsed ? 'collapsed' : ''}" onclick="toggleGroupCollapse('__todo_done__')">
+      <i class="ti ti-check" style="font-size:12px;color:var(--primary);"></i>
+      <span>完了 (${done2.length})</span>
+      <i class="ti ti-chevron-down group-header-arrow"></i>
+    </div>`;
+    if (!todoDoneCollapsed) {
+      html += done2.map(todo => `
+        <div class="todo-item">
+          <div class="todo-cb done" onclick="toggleTodo('${todo.id}')">✓</div>
+          <span class="todo-text done">${escHtml(todo.text)}</span>
+          <button class="btn-undo" onclick="toggleTodo('${todo.id}')" style="margin-left:auto;font-size:10px;padding:3px 8px;">元に戻す</button>
+          <button class="todo-del" onclick="deleteTodo('${todo.id}')" title="削除" style="opacity:1;">×</button>
+        </div>`).join('');
+    }
+  }
+  el.innerHTML = html;
 }
 
 function addTodo() {
@@ -967,18 +1007,36 @@ function renderTasksPage() {
 
   const el = document.getElementById('taskListFull');
   if (!el) return;
-  if (tasks.length === 0) {
+
+  // ステータスフィルターが「完了」以外: アクティブ + 完了セクション分離
+  const showDoneSection = currentFilter === 'all' || currentFilter === 'done';
+  const activeTasks = showDoneSection ? tasks.filter(t => t.status !== 'done') : tasks;
+  const doneTasks   = showDoneSection ? tasks.filter(t => t.status === 'done')  : [];
+
+  if (activeTasks.length === 0 && doneTasks.length === 0) {
     el.innerHTML = `<div class="empty"><i class="ti ti-checklist"></i><p>タスクがありません</p></div>`;
     return;
   }
 
-  // グループ単独表示 or 全グループ表示で切り替え
-  if (currentGroupFilter !== 'all') {
-    el.innerHTML = `<div class="task-list">${tasks.map(t => taskFullHtml(t, tStr)).join('')}</div>`;
+  let html = '';
+  if (activeTasks.length === 0 && doneTasks.length === 0) {
+    html = `<div class="empty"><i class="ti ti-checklist"></i><p>タスクがありません</p></div>`;
+  } else if (currentGroupFilter !== 'all') {
+    // グループ単独表示
+    if (activeTasks.length > 0) {
+      html += `<div style="display:flex;flex-direction:column;gap:6px;">${activeTasks.map(t => taskFullHtml(t, tStr)).join('')}</div>`;
+    }
   } else {
-    // グループごとにまとめて表示
-    el.innerHTML = renderGroupedTasks(tasks, tStr);
+    // グループ別表示（アクティブのみ）
+    html += renderGroupedTasks(activeTasks, tStr);
   }
+
+  // 完了セクション
+  if (doneTasks.length > 0) {
+    html += renderDoneSection(doneTasks, tStr);
+  }
+
+  el.innerHTML = html || `<div class="empty"><i class="ti ti-checklist"></i><p>タスクがありません</p></div>`;
 }
 
 function renderGroupedTasks(tasks, tStr) {
@@ -1012,6 +1070,20 @@ function renderGroupedTasks(tasks, tStr) {
   return html;
 }
 
+function renderDoneSection(doneTasks, tStr) {
+  const isCollapsed = collapsedGroups.has('__done__');
+  return `
+    <div class="done-section-hdr ${isCollapsed ? 'collapsed' : ''}" onclick="toggleGroupCollapse('__done__')">
+      <i class="ti ti-circle-check" style="font-size:14px;color:var(--primary);"></i>
+      <span class="done-section-label">完了</span>
+      <span class="done-section-count">${doneTasks.length}</span>
+      <i class="ti ti-chevron-down group-header-arrow"></i>
+    </div>
+    <div class="group-body ${isCollapsed ? 'hidden' : ''}">
+      ${doneTasks.map(t => taskFullHtml(t, tStr)).join('')}
+    </div>`;
+}
+
 function toggleGroupCollapse(id) {
   if (collapsedGroups.has(id)) collapsedGroups.delete(id);
   else collapsedGroups.add(id);
@@ -1030,15 +1102,19 @@ function taskFullHtml(task, tStr) {
   }
   const catLabel = getCat(task.tag).label;
   const grpName  = task.group ? (getGroups().find(g => g.id === task.group)?.name || '') : '';
-  return `<div class="task-full" onclick="openEditTask('${task.id}')" style="cursor:pointer;">
-    <div class="task-check ${task.status==='done'?'checked':''}" onclick="event.stopPropagation();toggleDone('${task.id}')">${task.status==='done'?'✓':''}</div>
+  const isDone = task.status === 'done';
+  return `<div class="task-full" onclick="${isDone ? '' : `openEditTask('${task.id}')`}" style="cursor:${isDone ? 'default' : 'pointer'};">
+    <div class="task-check ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${task.id}')">${isDone?'✓':''}</div>
     <div class="task-info">
-      <div class="tname ${task.status==='done'?'done':''}">${escHtml(task.name)}</div>
+      <div class="tname ${isDone?'done':''}">${escHtml(task.name)}</div>
       <div class="tmeta">${catLabel}${grpName?' · '+grpName:''} · 進捗 ${pct}%${task.deadline?' · 期限: '+task.deadline:''}</div>
     </div>
     <div class="dl-badge ${dlCls}">${dlLabel}</div>
+    ${isDone
+      ? `<button class="btn-undo" onclick="event.stopPropagation();toggleDone('${task.id}')"><i class="ti ti-rotate-ccw"></i> 元に戻す</button>`
+      : ''}
     <div class="task-actions">
-      <button class="icon-btn" onclick="event.stopPropagation();openEditTask('${task.id}')" title="編集"><i class="ti ti-edit"></i></button>
+      ${!isDone ? `<button class="icon-btn" onclick="event.stopPropagation();openEditTask('${task.id}')" title="編集"><i class="ti ti-edit"></i></button>` : ''}
       <button class="icon-btn del" onclick="event.stopPropagation();deleteTask('${task.id}')" title="削除"><i class="ti ti-trash"></i></button>
     </div>
   </div>`;
