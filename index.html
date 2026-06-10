@@ -67,6 +67,7 @@
     .section-title { font-size: 13px; font-weight: 500; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
     .section-title .link-btn { font-size: 12px; font-weight: 400; color: var(--primary); cursor: pointer; background: none; border: none; display: flex; align-items: center; gap: 2px; }
     .section-title .link-btn:hover { text-decoration: underline; }
+    .section-title .btn-group { display: flex; gap: 8px; align-items: center; }
 
     /* ── Dashboard grid ── */
     .dash-2col { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
@@ -74,7 +75,6 @@
 
     /* ── Schedule Timeline ── */
     .schedule-scroll { overflow-y: auto; max-height: 310px; }
-    .schedule-inner { position: relative; }
     .sched-empty { text-align: center; padding: 32px 16px; color: var(--text-secondary); font-size: 13px; }
     .sched-empty i { font-size: 32px; opacity: 0.3; display: block; margin-bottom: 8px; }
 
@@ -89,10 +89,6 @@
     .task-name { font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .task-name.done { color: var(--text-secondary); text-decoration: line-through; }
     .tag { font-size: 10px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
-    .tag.dev      { background: var(--primary-light); color: var(--primary-dark); }
-    .tag.priority { background: var(--warning-bg); color: var(--warning-dark); }
-    .tag.other    { background: #f3f4f6; color: var(--text-secondary); }
-    .tag.done-tag { background: #f3f4f6; color: var(--text-secondary); }
     .pbar-wrap { width: 80px; height: 4px; background: var(--primary-light); border-radius: 2px; flex-shrink: 0; }
     .pbar { height: 100%; border-radius: 2px; background: var(--primary); }
     .task-pct { font-size: 11px; color: var(--text-secondary); min-width: 30px; text-align: right; }
@@ -111,11 +107,12 @@
     .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 100px; margin-top: 8px; }
     .bar-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
     .bar-bg { width: 100%; flex: 1; display: flex; align-items: flex-end; }
-    .bar-fill { width: 100%; border-radius: 3px 3px 0 0; min-height: 4px; }
+    .bar-fill { width: 100%; border-radius: 3px 3px 0 0; }
     .bar-fill.today { background: var(--primary); }
     .bar-fill.past  { background: var(--primary-pale); }
     .bar-fill.future { background: #e9f0f5; }
     .bar-lbl { font-size: 10px; color: var(--text-secondary); }
+    .bar-empty { width: 100%; height: 4px; border-radius: 3px; background: #f3f4f6; }
 
     /* ── Tasks page ── */
     .task-pg-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
@@ -185,6 +182,11 @@
     .btn-ghost:hover { background: var(--bg); }
     .btn-danger { background: #fee2e2; color: var(--urgent-dark); border: none; border-radius: var(--radius-sm); padding: 8px 14px; font-size: 12px; cursor: pointer; }
     .btn-danger:hover { background: #fecaca; }
+    /* カテゴリ行 */
+    .cat-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f9fafb; }
+    .cat-row:last-child { border-bottom: none; }
+    .cat-preview { display: flex; align-items: center; gap: 8px; }
+    .cat-default-badge { font-size: 10px; color: var(--text-secondary); background: #f3f4f6; padding: 1px 6px; border-radius: 8px; }
 
     /* ── Modal ── */
     .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.28); display: none; align-items: center; justify-content: center; z-index: 100; }
@@ -257,9 +259,13 @@
         </div>
       </div>
       <div class="card mb16">
+        <!-- ③ ダッシュボードからタスク追加ボタン -->
         <div class="section-title">
           進行中のタスク
-          <button class="link-btn" onclick="navigate('tasks')">すべて見る →</button>
+          <div class="btn-group">
+            <button class="link-btn" onclick="openAddTask()"><i class="ti ti-plus"></i> 追加</button>
+            <button class="link-btn" onclick="navigate('tasks')">すべて見る →</button>
+          </div>
         </div>
         <div class="task-list" id="dashTaskList"></div>
       </div>
@@ -283,11 +289,11 @@
         <button class="btn-primary" onclick="openAddTask()"><i class="ti ti-plus"></i> タスクを追加</button>
       </div>
       <div class="filter-row">
-        <button class="filter-btn active" data-filter="all"     onclick="setFilter(this)">すべて</button>
-        <button class="filter-btn"        data-filter="todo"    onclick="setFilter(this)">未着手</button>
-        <button class="filter-btn"        data-filter="progress"onclick="setFilter(this)">進行中</button>
-        <button class="filter-btn"        data-filter="done"    onclick="setFilter(this)">完了</button>
-        <button class="filter-btn"        data-filter="overdue" onclick="setFilter(this)">期限超過</button>
+        <button class="filter-btn active" data-filter="all"      onclick="setFilter(this)">すべて</button>
+        <button class="filter-btn"        data-filter="todo"     onclick="setFilter(this)">未着手</button>
+        <button class="filter-btn"        data-filter="progress" onclick="setFilter(this)">進行中</button>
+        <button class="filter-btn"        data-filter="done"     onclick="setFilter(this)">完了</button>
+        <button class="filter-btn"        data-filter="overdue"  onclick="setFilter(this)">期限超過</button>
       </div>
       <div id="taskListFull" class="task-list"></div>
     </div>
@@ -341,6 +347,8 @@
         <div class="page-title">設定</div>
         <div class="page-sub">アプリの設定とデータを管理する</div>
       </div>
+
+      <!-- 一般 -->
       <div class="card settings-card">
         <h3>一般</h3>
         <div class="settings-row">
@@ -351,6 +359,31 @@
           <input type="text" id="settingUserName" class="form-input" style="width:200px;" placeholder="名前を入力" oninput="saveSettings()">
         </div>
       </div>
+
+      <!-- ① カテゴリ管理 -->
+      <div class="card settings-card">
+        <h3>カテゴリ管理</h3>
+        <div id="categoryList"></div>
+        <div style="display:flex;gap:8px;margin-top:14px;align-items:flex-end;">
+          <div style="flex:1;">
+            <label class="form-label">カテゴリ名</label>
+            <input type="text" id="newCatName" class="form-input" placeholder="例：学習、仕事...">
+          </div>
+          <div style="width:110px;">
+            <label class="form-label">カラー</label>
+            <select id="newCatColor" class="form-select">
+              <option value="blue">青</option>
+              <option value="green">緑</option>
+              <option value="purple">紫</option>
+              <option value="orange">オレンジ</option>
+              <option value="gray">グレー</option>
+            </select>
+          </div>
+          <button class="btn-primary" onclick="addCategory()" style="flex-shrink:0;">追加</button>
+        </div>
+      </div>
+
+      <!-- データ管理 -->
       <div class="card settings-card">
         <h3>データ管理</h3>
         <div class="settings-row">
@@ -392,11 +425,8 @@
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">カテゴリ</label>
-        <select id="taskTag" class="form-select">
-          <option value="dev">開発</option>
-          <option value="priority">優先</option>
-          <option value="other">その他</option>
-        </select>
+        <!-- ① 設定から追加したカテゴリが動的に入る -->
+        <select id="taskTag" class="form-select"></select>
       </div>
       <div class="form-group">
         <label class="form-label">ステータス</label>
@@ -473,9 +503,119 @@ const setSched    = (v) => dbSet(KEYS.schedule, v);
 const getSettings = ()  => dbGet(KEYS.settings, {});
 const setSettings = (v) => dbSet(KEYS.settings, v);
 
-const uid     = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-const todayStr= () => new Date().toISOString().split('T')[0];
-const escHtml = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const uid      = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
+const todayStr = () => new Date().toISOString().split('T')[0];
+const escHtml  = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// ─── ① カテゴリ管理 ────────────────────────────────────────────────────────────
+const DEFAULT_CATS = [
+  { value: 'dev',      label: '開発',   color: 'blue'   },
+  { value: 'priority', label: '優先',   color: 'yellow' },
+  { value: 'other',    label: 'その他', color: 'gray'   },
+];
+const DEFAULT_VALS = DEFAULT_CATS.map(c => c.value);
+
+// カラーパレット → inline style
+const TAG_STYLES = {
+  blue:   'background:#E6F1FB;color:#185FA5;',
+  yellow: 'background:#FAEEDA;color:#854F0B;',
+  gray:   'background:#f3f4f6;color:#6B7280;',
+  green:  'background:#dcfce7;color:#166534;',
+  purple: 'background:#f3e8ff;color:#7c3aed;',
+  orange: 'background:#fff7ed;color:#c2410c;',
+  done:   'background:#f3f4f6;color:#6B7280;',
+};
+const COLOR_LABELS = { blue:'青', yellow:'黄', gray:'グレー', green:'緑', purple:'紫', orange:'オレンジ' };
+
+function getCategories() {
+  return getSettings().categories || DEFAULT_CATS;
+}
+
+function getCat(value) {
+  return getCategories().find(c => c.value === value) || { value, label: value, color: 'gray' };
+}
+
+function tagHtml(value, isDone = false) {
+  if (isDone) return `<span class="tag" style="${TAG_STYLES.done}">完了</span>`;
+  const cat = getCat(value);
+  return `<span class="tag" style="${TAG_STYLES[cat.color] || TAG_STYLES.gray}">${escHtml(cat.label)}</span>`;
+}
+
+// タスクモーダルのカテゴリ選択肢を最新にする
+function populateTagSelect(currentValue) {
+  const sel = document.getElementById('taskTag');
+  if (!sel) return;
+  sel.innerHTML = getCategories().map(c =>
+    `<option value="${escHtml(c.value)}">${escHtml(c.label)}</option>`
+  ).join('');
+  if (currentValue && getCategories().find(c => c.value === currentValue)) {
+    sel.value = currentValue;
+  }
+}
+
+// 設定ページのカテゴリ一覧を描画
+function renderCategoryList() {
+  const cats = getCategories();
+  const el = document.getElementById('categoryList');
+  if (!el) return;
+  if (cats.length === 0) {
+    el.innerHTML = '<div class="empty" style="padding:12px 0;"><p>カテゴリがありません</p></div>';
+    return;
+  }
+  el.innerHTML = cats.map(cat => {
+    const isDef = DEFAULT_VALS.includes(cat.value);
+    return `<div class="cat-row">
+      <div class="cat-preview">
+        <span class="tag" style="${TAG_STYLES[cat.color] || TAG_STYLES.gray}">${escHtml(cat.label)}</span>
+        ${isDef ? '<span class="cat-default-badge">デフォルト</span>' : ''}
+      </div>
+      ${isDef
+        ? '<span style="font-size:11px;color:var(--text-secondary);">削除不可</span>'
+        : `<button class="icon-btn del" onclick="deleteCategory('${cat.value}')" title="削除"><i class="ti ti-trash"></i></button>`}
+    </div>`;
+  }).join('');
+}
+
+function addCategory() {
+  const name = document.getElementById('newCatName').value.trim();
+  if (!name) { alert('カテゴリ名を入力してください'); return; }
+  const color = document.getElementById('newCatColor').value;
+  const value = 'cat_' + Date.now();
+  const s = getSettings();
+  s.categories = [...getCategories(), { value, label: name, color }];
+  setSettings(s);
+  document.getElementById('newCatName').value = '';
+  renderCategoryList();
+  toast('カテゴリを追加しました');
+}
+
+function deleteCategory(value) {
+  if (DEFAULT_VALS.includes(value)) return;
+  if (!confirm('このカテゴリを削除しますか？\n（このカテゴリのタスクは「その他」として表示されます）')) return;
+  const s = getSettings();
+  s.categories = getCategories().filter(c => c.value !== value);
+  setSettings(s);
+  renderCategoryList();
+  toast('カテゴリを削除しました');
+}
+
+// ─── ② 実際のタスク完了データから週別カウントを計算 ──────────────────────────
+function getWeekCounts() {
+  const tasks = getTasks();
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  tasks.forEach(t => {
+    if (!t.completedAt) return;
+    const d = new Date(t.completedAt);
+    d.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((now - d) / 86400000);
+    if (diffDays < 0 || diffDays > 6) return;
+    const dow = (d.getDay() + 6) % 7; // 0=月曜
+    counts[dow]++;
+  });
+  return counts;
+}
 
 // ─── Routing ──────────────────────────────────────────────────────────────────
 const PAGES = ['dashboard','tasks','report','calendar','settings'];
@@ -502,11 +642,9 @@ function renderPage(page) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 function renderDashboard() {
-  // Date header
   const d = new Date();
   document.getElementById('dashDate').textContent =
     d.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
-
   renderMetrics();
   renderScheduleTimeline();
   renderDeadlines();
@@ -517,11 +655,11 @@ function renderDashboard() {
 function renderMetrics() {
   const tasks = getTasks();
   const tStr  = todayStr();
-  const total    = tasks.length;
-  const done     = tasks.filter(t => t.status === 'done').length;
-  const inProg   = tasks.filter(t => t.status === 'progress').length;
-  const overdue  = tasks.filter(t => t.deadline && t.deadline < tStr && t.status !== 'done').length;
-  const doneRate = total ? Math.round(done / total * 100) : 0;
+  const total   = tasks.length;
+  const done    = tasks.filter(t => t.status === 'done').length;
+  const inProg  = tasks.filter(t => t.status === 'progress').length;
+  const overdue = tasks.filter(t => t.deadline && t.deadline < tStr && t.status !== 'done').length;
+  const rate    = total ? Math.round(done / total * 100) : 0;
 
   document.getElementById('metrics').innerHTML = `
     <div class="metric-card accent">
@@ -532,7 +670,7 @@ function renderMetrics() {
     <div class="metric-card">
       <div class="metric-label">完了</div>
       <div class="metric-value" style="color:var(--primary-dark);">${done}</div>
-      <div class="metric-sub" style="color:var(--text-secondary);">${doneRate}%</div>
+      <div class="metric-sub" style="color:var(--text-secondary);">${rate}%</div>
     </div>
     <div class="metric-card">
       <div class="metric-label">進行中</div>
@@ -547,11 +685,11 @@ function renderMetrics() {
 }
 
 function renderScheduleTimeline() {
-  const tStr  = todayStr();
-  const evs   = getSched().filter(e => e.date === tStr).sort((a,b) => a.startTime.localeCompare(b.startTime));
-  const now   = new Date();
-  const curH  = now.getHours();
-  const curM  = now.getMinutes();
+  const tStr = todayStr();
+  const evs  = getSched().filter(e => e.date === tStr).sort((a,b) => a.startTime.localeCompare(b.startTime));
+  const now  = new Date();
+  const curH = now.getHours();
+  const curM = now.getMinutes();
   const START = 8, END = 21, HR_PX = 56;
 
   if (evs.length === 0 && (curH < START || curH >= END)) {
@@ -560,18 +698,15 @@ function renderScheduleTimeline() {
     return;
   }
 
-  const totalH = (END - START) * HR_PX;
-  let html = `<div style="position:relative;height:${totalH}px;">`;
-
+  let html = `<div style="position:relative;height:${(END - START) * HR_PX}px;">`;
   for (let h = START; h <= END; h++) {
-    const top = (h - START) * HR_PX;
+    const top   = (h - START) * HR_PX;
     const isCur = h === curH;
     html += `<div style="position:absolute;top:${top}px;left:0;right:0;height:${HR_PX}px;border-top:1px solid ${isCur ? 'var(--primary)' : 'var(--border)'};display:flex;">
-      <span style="width:44px;font-size:11px;color:${isCur ? 'var(--primary)' : 'var(--text-secondary)'};font-weight:${isCur ? '600' : '400'};padding:3px 6px 0 0;text-align:right;flex-shrink:0;">${String(h).padStart(2,'0')}:00</span>
+      <span style="width:44px;font-size:11px;color:${isCur ? 'var(--primary)' : 'var(--text-secondary)'};font-weight:${isCur?'600':'400'};padding:3px 6px 0 0;text-align:right;flex-shrink:0;">${String(h).padStart(2,'0')}:00</span>
       <div style="flex:1;border-left:1px solid #f0f0f0;"></div>
     </div>`;
   }
-
   evs.forEach(ev => {
     const [h, m] = ev.startTime.split(':').map(Number);
     if (h < START || h >= END) return;
@@ -585,15 +720,12 @@ function renderScheduleTimeline() {
       <button onclick="deleteSchedule('${ev.id}')" style="position:absolute;top:2px;right:4px;background:none;border:none;cursor:pointer;font-size:15px;color:var(--text-secondary);line-height:1;opacity:0.6;" title="削除">×</button>
     </div>`;
   });
-
-  // Current time line
   if (curH >= START && curH < END) {
     const topPx = (curH - START + curM / 60) * HR_PX;
     html += `<div style="position:absolute;top:${topPx}px;left:44px;right:0;height:2px;background:var(--urgent);z-index:3;">
       <div style="width:8px;height:8px;border-radius:50%;background:var(--urgent);margin-top:-3px;margin-left:-4px;"></div>
     </div>`;
   }
-
   html += '</div>';
   document.getElementById('scheduleTimeline').innerHTML = html;
 }
@@ -609,14 +741,13 @@ function renderDeadlines() {
     document.getElementById('deadlineList').innerHTML = '<div class="empty" style="padding:20px 0;"><p>期限のあるタスクがありません</p></div>';
     return;
   }
-
   document.getElementById('deadlineList').innerHTML = tasks.map(task => {
     const diff = Math.ceil((new Date(task.deadline) - new Date(tStr)) / 86400000);
     let cls = 'ok', label = task.deadline;
-    if (diff < 0)      { cls = 'urgent'; label = `${Math.abs(diff)}日超過`; }
-    else if (diff === 0) { cls = 'urgent'; label = '今日'; }
-    else if (diff === 1) { cls = 'soon';   label = '明日'; }
-    else if (diff <= 3)  { cls = 'soon';   label = `${diff}日後`; }
+    if (diff < 0)       { cls = 'urgent'; label = `${Math.abs(diff)}日超過`; }
+    else if (diff === 0){ cls = 'urgent'; label = '今日'; }
+    else if (diff === 1){ cls = 'soon';   label = '明日'; }
+    else if (diff <= 3) { cls = 'soon';   label = `${diff}日後`; }
     return `<div class="dl-item">
       <div class="dl-dot ${cls}"></div>
       <div class="dl-name">${escHtml(task.name)}</div>
@@ -631,32 +762,34 @@ function renderDashTasks() {
     document.getElementById('dashTaskList').innerHTML = '<div class="empty" style="padding:16px 0;"><p>進行中のタスクがありません</p></div>';
     return;
   }
-  document.getElementById('dashTaskList').innerHTML = tasks.map(t => taskCardHtml(t)).join('');
+  document.getElementById('dashTaskList').innerHTML = tasks.map(t => {
+    const pct = t.status === 'done' ? 100 : (t.progress || 0);
+    return `<div class="task-card">
+      <div class="task-dot ${t.status}"></div>
+      <div class="task-name ${t.status === 'done' ? 'done' : ''}">${escHtml(t.name)}</div>
+      ${tagHtml(t.tag, t.status === 'done')}
+      <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;"></div></div>
+      <div class="task-pct">${pct}%</div>
+    </div>`;
+  }).join('');
 }
 
-function taskCardHtml(t) {
-  const tagMap = { dev:'開発', priority:'優先', other:'その他' };
-  const pct = t.status === 'done' ? 100 : (t.progress || 0);
-  return `<div class="task-card">
-    <div class="task-dot ${t.status}"></div>
-    <div class="task-name ${t.status === 'done' ? 'done' : ''}">${escHtml(t.name)}</div>
-    <div class="tag ${t.status === 'done' ? 'done-tag' : t.tag}">${t.status === 'done' ? '完了' : (tagMap[t.tag] || 'その他')}</div>
-    <div class="pbar-wrap"><div class="pbar" style="width:${pct}%;"></div></div>
-    <div class="task-pct">${pct}%</div>
-  </div>`;
-}
-
+// ② 実データを使った週別バーチャート（データがなければ空表示）
 function renderWeeklyChart() {
-  const days   = ['月','火','水','木','金','土','日'];
+  const days     = ['月','火','水','木','金','土','日'];
   const todayDow = (new Date().getDay() + 6) % 7;
-  // Demo completion counts — replace with tracked data if desired
-  const counts = [3, 5, 2, 7, 4, 1, 0];
-  const maxC   = Math.max(...counts, 1);
+  const counts   = getWeekCounts();
+  const maxC     = Math.max(...counts, 1);
+  const hasData  = counts.some(c => c > 0);
 
   document.getElementById('weeklyChart').innerHTML = days.map((d, i) => {
     const cls = i === todayDow ? 'today' : (i < todayDow ? 'past' : 'future');
     return `<div class="bar-col">
-      <div class="bar-bg"><div class="bar-fill ${cls}" style="height:${(counts[i]/maxC*100)}%;"></div></div>
+      <div class="bar-bg">
+        ${hasData
+          ? `<div class="bar-fill ${cls}" style="height:${(counts[i]/maxC*100)}%;min-height:${counts[i]>0?'4px':'0'};"></div>`
+          : `<div class="bar-empty"></div>`}
+      </div>
       <div class="bar-lbl">${d}</div>
     </div>`;
   }).join('');
@@ -673,15 +806,15 @@ function setFilter(btn) {
 }
 
 function renderTasksPage() {
-  const search   = (document.getElementById('taskSearch')?.value || '').toLowerCase();
-  const tStr     = todayStr();
-  let tasks      = getTasks();
+  const search = (document.getElementById('taskSearch')?.value || '').toLowerCase();
+  const tStr   = todayStr();
+  let tasks    = getTasks();
 
-  if (search)                      tasks = tasks.filter(t => t.name.toLowerCase().includes(search));
-  if (currentFilter === 'todo')    tasks = tasks.filter(t => t.status === 'todo');
-  if (currentFilter === 'progress')tasks = tasks.filter(t => t.status === 'progress');
-  if (currentFilter === 'done')    tasks = tasks.filter(t => t.status === 'done');
-  if (currentFilter === 'overdue') tasks = tasks.filter(t => t.deadline && t.deadline < tStr && t.status !== 'done');
+  if (search)                       tasks = tasks.filter(t => t.name.toLowerCase().includes(search));
+  if (currentFilter === 'todo')     tasks = tasks.filter(t => t.status === 'todo');
+  if (currentFilter === 'progress') tasks = tasks.filter(t => t.status === 'progress');
+  if (currentFilter === 'done')     tasks = tasks.filter(t => t.status === 'done');
+  if (currentFilter === 'overdue')  tasks = tasks.filter(t => t.deadline && t.deadline < tStr && t.status !== 'done');
 
   const el = document.getElementById('taskListFull');
   if (!el) return;
@@ -690,22 +823,22 @@ function renderTasksPage() {
     return;
   }
 
-  const tagLabels = { dev:'開発', priority:'優先', other:'その他' };
   el.innerHTML = tasks.map(task => {
     const pct  = task.status === 'done' ? 100 : (task.progress || 0);
     const diff = task.deadline ? Math.ceil((new Date(task.deadline) - new Date(tStr)) / 86400000) : null;
     let dlCls = 'nodate', dlLabel = '期限なし';
     if (diff !== null) {
-      if (diff < 0)      { dlCls = 'urgent'; dlLabel = `${Math.abs(diff)}日超過`; }
-      else if (diff === 0) { dlCls = 'urgent'; dlLabel = '今日'; }
-      else if (diff <= 3)  { dlCls = 'soon';   dlLabel = `${diff}日後`; }
-      else                 { dlCls = 'ok';     dlLabel = task.deadline; }
+      if (diff < 0)       { dlCls = 'urgent'; dlLabel = `${Math.abs(diff)}日超過`; }
+      else if (diff === 0){ dlCls = 'urgent'; dlLabel = '今日'; }
+      else if (diff <= 3) { dlCls = 'soon';   dlLabel = `${diff}日後`; }
+      else                { dlCls = 'ok';     dlLabel = task.deadline; }
     }
+    const catLabel = getCat(task.tag).label;
     return `<div class="task-full">
       <div class="task-check ${task.status === 'done' ? 'checked' : ''}" onclick="toggleDone('${task.id}')">${task.status === 'done' ? '✓' : ''}</div>
       <div class="task-info">
         <div class="tname ${task.status === 'done' ? 'done' : ''}">${escHtml(task.name)}</div>
-        <div class="tmeta">${tagLabels[task.tag] || 'その他'} · 進捗 ${pct}%${task.deadline ? ' · 期限: ' + task.deadline : ''}</div>
+        <div class="tmeta">${catLabel} · 進捗 ${pct}%${task.deadline ? ' · 期限: ' + task.deadline : ''}</div>
       </div>
       <div class="dl-badge ${dlCls}">${dlLabel}</div>
       <div class="task-actions">
@@ -716,11 +849,12 @@ function renderTasksPage() {
   }).join('');
 }
 
+// ② completedAt を記録して実データをグラフに反映
 function toggleDone(id) {
   const tasks = getTasks().map(t => {
     if (t.id !== id) return t;
     const next = t.status === 'done' ? 'todo' : 'done';
-    return { ...t, status: next, progress: next === 'done' ? 100 : t.progress };
+    return { ...t, status: next, progress: next === 'done' ? 100 : t.progress, completedAt: next === 'done' ? todayStr() : null };
   });
   setTasks(tasks);
   renderTasksPage();
@@ -737,13 +871,13 @@ function deleteTask(id) {
 // ─── Task Modal ───────────────────────────────────────────────────────────────
 function openAddTask() {
   document.getElementById('taskModalTitle').textContent = 'タスクを追加';
-  document.getElementById('editTaskId').value  = '';
-  document.getElementById('taskName').value    = '';
-  document.getElementById('taskTag').value     = 'dev';
-  document.getElementById('taskStatus').value  = 'todo';
-  document.getElementById('taskProgress').value= 0;
+  document.getElementById('editTaskId').value   = '';
+  document.getElementById('taskName').value     = '';
+  document.getElementById('taskStatus').value   = 'todo';
+  document.getElementById('taskProgress').value = 0;
   document.getElementById('progressLabel').textContent = '0';
-  document.getElementById('taskDeadline').value= '';
+  document.getElementById('taskDeadline').value = '';
+  populateTagSelect(); // ① 最新カテゴリを反映
   openModal('taskModal');
 }
 
@@ -751,13 +885,13 @@ function openEditTask(id) {
   const t = getTasks().find(t => t.id === id);
   if (!t) return;
   document.getElementById('taskModalTitle').textContent = 'タスクを編集';
-  document.getElementById('editTaskId').value  = id;
-  document.getElementById('taskName').value    = t.name;
-  document.getElementById('taskTag').value     = t.tag;
-  document.getElementById('taskStatus').value  = t.status;
-  document.getElementById('taskProgress').value= t.progress || 0;
+  document.getElementById('editTaskId').value   = id;
+  document.getElementById('taskName').value     = t.name;
+  document.getElementById('taskStatus').value   = t.status;
+  document.getElementById('taskProgress').value = t.progress || 0;
   document.getElementById('progressLabel').textContent = t.progress || 0;
-  document.getElementById('taskDeadline').value= t.deadline || '';
+  document.getElementById('taskDeadline').value = t.deadline || '';
+  populateTagSelect(t.tag); // ① 最新カテゴリを反映して現在値を選択
   openModal('taskModal');
 }
 
@@ -789,24 +923,23 @@ function saveTask() {
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
 function openAddSchedule() {
-  document.getElementById('schedTitle').value   = '';
-  document.getElementById('schedTime').value    = '09:00';
-  document.getElementById('schedDuration').value= '60';
-  document.getElementById('schedDate').value    = todayStr();
+  document.getElementById('schedTitle').value    = '';
+  document.getElementById('schedTime').value     = '09:00';
+  document.getElementById('schedDuration').value = '60';
+  document.getElementById('schedDate').value     = todayStr();
   openModal('schedModal');
 }
 
 function saveSchedule() {
   const title = document.getElementById('schedTitle').value.trim();
   if (!title) { alert('タイトルを入力してください'); return; }
-  const ev = {
+  setSched([...getSched(), {
     id:        uid(),
     title,
     startTime: document.getElementById('schedTime').value,
     duration:  parseInt(document.getElementById('schedDuration').value),
     date:      document.getElementById('schedDate').value,
-  };
-  setSched([...getSched(), ev]);
+  }]);
   closeModal('schedModal');
   renderScheduleTimeline();
   toast('スケジュールを追加しました');
@@ -837,35 +970,50 @@ function renderReport() {
     <div class="stat-item"><span class="stat-label">期限超過</span><span class="stat-value" style="color:${over > 0 ? 'var(--urgent)' : 'inherit'}">${over}</span></div>
     <div class="stat-item"><span class="stat-label">平均進捗率</span><span class="stat-value">${avgPct}%</span></div>`;
 
-  const days = ['月','火','水','木','金','土','日'];
+  // ② 実データで週間グラフ（0のみなら空バーで表示）
+  const days     = ['月','火','水','木','金','土','日'];
   const todayDow = (new Date().getDay() + 6) % 7;
-  const weekCounts = [3, 5, 2, 7, 4, 1, 0];
+  const counts   = getWeekCounts();
 
   if (reportWeekChart) reportWeekChart.destroy();
   reportWeekChart = new Chart(document.getElementById('reportWeekChart'), {
     type: 'bar',
     data: {
       labels: days,
-      datasets: [{ data: weekCounts, backgroundColor: days.map((_,i) => i === todayDow ? '#378ADD' : '#B5D4F4'), borderRadius: 4 }]
+      datasets: [{ data: counts, backgroundColor: days.map((_,i) => i === todayDow ? '#378ADD' : '#B5D4F4'), borderRadius: 4 }]
     },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1 } }, x: { grid: { display: false } } } }
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#f3f4f6' }, ticks: { stepSize: 1, precision: 0 } },
+        x: { grid: { display: false } }
+      }
+    }
   });
 
   if (statusChart) statusChart.destroy();
+  const hasStatus = done + prog + todo > 0;
   statusChart = new Chart(document.getElementById('statusChart'), {
     type: 'doughnut',
     data: {
       labels: ['完了', '進行中', '未着手'],
-      datasets: [{ data: [done, prog, todo], backgroundColor: ['#378ADD','#85B7EB','#E5E7EB'], borderWidth: 0 }]
+      datasets: [{ data: hasStatus ? [done, prog, todo] : [1,1,1], backgroundColor: ['#378ADD','#85B7EB','#E5E7EB'], borderWidth: 0 }]
     },
-    options: { responsive: true, plugins: { legend: { position: 'right' } } }
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'right' },
+        tooltip: { enabled: hasStatus }
+      }
+    }
   });
 }
 
 // ─── Calendar ─────────────────────────────────────────────────────────────────
 function renderCalendar() {
-  const tStr  = todayStr();
-  const now   = new Date();
+  const tStr = todayStr();
+  const now  = new Date();
   if (calYear == null) { calYear = now.getFullYear(); calMonth = now.getMonth(); }
 
   const mNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -873,9 +1021,7 @@ function renderCalendar() {
 
   const tasks   = getTasks();
   const taskMap = {};
-  tasks.forEach(t => {
-    if (t.deadline) { taskMap[t.deadline] = taskMap[t.deadline] || []; taskMap[t.deadline].push(t); }
-  });
+  tasks.forEach(t => { if (t.deadline) { taskMap[t.deadline] = taskMap[t.deadline] || []; taskMap[t.deadline].push(t); } });
 
   const dayHdrs  = ['月','火','水','木','金','土','日'];
   const first    = new Date(calYear, calMonth, 1);
@@ -884,7 +1030,6 @@ function renderCalendar() {
   const daysInP  = new Date(calYear, calMonth, 0).getDate();
 
   let html = dayHdrs.map(d => `<div class="cal-day-hdr">${d}</div>`).join('');
-
   for (let i = firstDow - 1; i >= 0; i--)
     html += `<div class="cal-day other"><div class="cal-day-num">${daysInP - i}</div></div>`;
 
@@ -898,10 +1043,9 @@ function renderCalendar() {
         const cls = (t.deadline < tStr && t.status !== 'done') ? 'urgent-ev' : '';
         return `<div class="cal-ev ${cls}">${escHtml(t.name)}</div>`;
       }).join('')}
-      ${evts.length > 3 ? `<div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">+${evts.length - 3}件</div>` : ''}
+      ${evts.length > 3 ? `<div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">+${evts.length-3}件</div>` : ''}
     </div>`;
   }
-
   const total = Math.ceil((firstDow + daysInM) / 7) * 7;
   for (let d = 1; d <= total - firstDow - daysInM; d++)
     html += `<div class="cal-day other"><div class="cal-day-num">${d}</div></div>`;
@@ -916,7 +1060,9 @@ function calToday() { const n = new Date(); calYear = n.getFullYear(); calMonth 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 function renderSettings() {
   document.getElementById('settingUserName').value = getSettings().userName || '';
+  renderCategoryList(); // ① カテゴリ一覧を描画
 }
+
 function saveSettings() {
   const s = getSettings();
   s.userName = document.getElementById('settingUserName').value;
@@ -931,19 +1077,19 @@ function addDays(dateStr, n) {
 function loadSampleData() {
   const t = todayStr();
   const sampleTasks = [
-    { id: uid(), name: 'ポートフォリオサイトのUI設計',      tag:'dev',      status:'progress', progress:70,  deadline: addDays(t, 10), createdAt: t },
-    { id: uid(), name: 'Bubbleチャットアプリのバグ修正',     tag:'priority', status:'progress', progress:45,  deadline: addDays(t, 3),  createdAt: t },
-    { id: uid(), name: 'GitHubアカウント設定・README作成',  tag:'dev',      status:'done',     progress:100, deadline: addDays(t,-2),  createdAt: addDays(t,-7) },
-    { id: uid(), name: '統計レポート提出',                   tag:'other',    status:'todo',     progress:0,   deadline: addDays(t, 1),  createdAt: t },
-    { id: uid(), name: 'Figmaデザイン提出',                 tag:'dev',      status:'todo',     progress:0,   deadline: addDays(t, 3),  createdAt: t },
-    { id: uid(), name: 'SaaS企画書',                        tag:'other',    status:'todo',     progress:0,   deadline: addDays(t, 18), createdAt: t },
+    { id: uid(), name: 'ポートフォリオサイトのUI設計',     tag:'dev',      status:'progress', progress:70,  deadline: addDays(t, 10), createdAt: t },
+    { id: uid(), name: 'Bubbleチャットアプリのバグ修正',    tag:'priority', status:'progress', progress:45,  deadline: addDays(t, 3),  createdAt: t },
+    { id: uid(), name: 'GitHubアカウント設定・README作成', tag:'dev',      status:'done',     progress:100, deadline: addDays(t,-2),  createdAt: addDays(t,-7), completedAt: addDays(t,-1) },
+    { id: uid(), name: '統計レポート提出',                  tag:'other',    status:'todo',     progress:0,   deadline: addDays(t, 1),  createdAt: t },
+    { id: uid(), name: 'Figmaデザイン提出',                tag:'dev',      status:'todo',     progress:0,   deadline: addDays(t, 3),  createdAt: t },
+    { id: uid(), name: 'SaaS企画書',                       tag:'other',    status:'todo',     progress:0,   deadline: addDays(t, 18), createdAt: t },
   ];
   const sampleSched = [
-    { id: uid(), title:'朝のスタンドアップ',     startTime:'09:00', duration:30,  date:t },
-    { id: uid(), title:'ポートフォリオ作業',     startTime:'10:00', duration:120, date:t },
-    { id: uid(), title:'ランチ',                startTime:'12:00', duration:60,  date:t },
-    { id: uid(), title:'バグ修正作業',           startTime:'14:00', duration:90,  date:t },
-    { id: uid(), title:'統計レポート確認',       startTime:'16:00', duration:60,  date:t },
+    { id: uid(), title:'朝のスタンドアップ',   startTime:'09:00', duration:30,  date:t },
+    { id: uid(), title:'ポートフォリオ作業',   startTime:'10:00', duration:120, date:t },
+    { id: uid(), title:'ランチ',              startTime:'12:00', duration:60,  date:t },
+    { id: uid(), title:'バグ修正作業',         startTime:'14:00', duration:90,  date:t },
+    { id: uid(), title:'統計レポート確認',     startTime:'16:00', duration:60,  date:t },
   ];
   setTasks([...getTasks(), ...sampleTasks]);
   setSched([...getSched(), ...sampleSched]);
@@ -990,10 +1136,8 @@ document.addEventListener('DOMContentLoaded', () => {
   calYear  = now.getFullYear();
   calMonth = now.getMonth();
   renderDashboard();
-
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape')
-      document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
+    if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
   });
 });
 </script>
