@@ -244,6 +244,24 @@
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
     input[type=range] { width: 100%; accent-color: var(--primary); margin-top: 4px; }
 
+    /* ── 完了アニメーション ── */
+    @keyframes checkBounce {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.5) rotate(-10deg); }
+      55%  { transform: scale(0.85) rotate(5deg); }
+      75%  { transform: scale(1.15); }
+      100% { transform: scale(1); }
+    }
+    @keyframes completeFlash {
+      0%   { background: white; }
+      30%  { background: #dcfce7; }
+      100% { background: white; }
+    }
+    .task-check.bounce, .todo-cb.bounce { animation: checkBounce 0.45s cubic-bezier(.36,.07,.19,.97); }
+    .task-full.completing { animation: completeFlash 0.5s ease; }
+    .todo-item.completing { animation: completeFlash 0.5s ease; border-radius: var(--radius-sm); }
+    .toast.celebrate { background: var(--primary) !important; font-weight: 600; letter-spacing: 0.03em; }
+
     .empty { text-align: center; padding: 36px 16px; color: var(--text-secondary); }
     .empty i { font-size: 36px; opacity: 0.25; display: block; margin-bottom: 10px; }
     .empty p { font-size: 13px; }
@@ -878,7 +896,7 @@ function renderTodoList() {
   }
   html += undone.map(todo => `
     <div class="todo-item">
-      <div class="todo-cb" onclick="toggleTodo('${todo.id}')"></div>
+      <div class="todo-cb" onclick="toggleTodo('${todo.id}',this)"></div>
       <span class="todo-text">${escHtml(todo.text)}</span>
       <button class="todo-del" onclick="deleteTodo('${todo.id}')" title="削除">×</button>
     </div>`).join('');
@@ -911,9 +929,22 @@ function addTodo() {
   renderTodoList();
 }
 
-function toggleTodo(id) {
+function toggleTodo(id, el) {
+  const todo = getTodos().find(t => t.id === id);
+  const completing = todo && !todo.done;
+  if (completing && el) {
+    launchConfetti(el);
+    el.classList.add('bounce');
+    el.closest('.todo-item')?.classList.add('completing');
+    setTimeout(() => el.classList.remove('bounce'), 500);
+    celebrateToast();
+  }
   setTodos(getTodos().map(t => t.id === id ? { ...t, done: !t.done } : t));
-  renderTodoList();
+  if (completing) {
+    setTimeout(() => renderTodoList(), 420);
+  } else {
+    renderTodoList();
+  }
 }
 
 function deleteTodo(id) {
@@ -1104,7 +1135,7 @@ function taskFullHtml(task, tStr) {
   const grpName  = task.group ? (getGroups().find(g => g.id === task.group)?.name || '') : '';
   const isDone = task.status === 'done';
   return `<div class="task-full" onclick="${isDone ? '' : `openEditTask('${task.id}')`}" style="cursor:${isDone ? 'default' : 'pointer'};">
-    <div class="task-check ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${task.id}')">${isDone?'✓':''}</div>
+    <div class="task-check ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${task.id}',this)">${isDone?'✓':''}</div>
     <div class="task-info">
       <div class="tname ${isDone?'done':''}">${escHtml(task.name)}</div>
       <div class="tmeta">${catLabel}${grpName?' · '+grpName:''} · 進捗 ${pct}%${task.deadline?' · 期限: '+task.deadline:''}</div>
@@ -1120,15 +1151,27 @@ function taskFullHtml(task, tStr) {
   </div>`;
 }
 
-function toggleDone(id) {
+function toggleDone(id, el) {
+  const task = getTasks().find(t => t.id === id);
+  const completing = task && task.status !== 'done';
+  if (completing && el) {
+    launchConfetti(el);
+    el.classList.add('bounce');
+    el.closest('.task-full')?.classList.add('completing');
+    setTimeout(() => el.classList.remove('bounce'), 500);
+    celebrateToast();
+  }
   const tasks = getTasks().map(t => {
     if (t.id !== id) return t;
     const next = t.status === 'done' ? 'todo' : 'done';
     return { ...t, status:next, progress:next==='done'?100:t.progress, completedAt:next==='done'?todayStr():null };
   });
   setTasks(tasks);
-  renderTasksPage();
-  renderMetrics();
+  if (completing) {
+    setTimeout(() => renderPage(currentPage), 420);
+  } else {
+    renderPage(currentPage);
+  }
 }
 
 function deleteTask(id) {
@@ -1344,9 +1387,81 @@ document.querySelectorAll('.overlay').forEach(el => {
 let toastTimer;
 function toast(msg) {
   const el = document.getElementById('toast');
-  el.textContent = msg; el.classList.add('show');
+  el.textContent = msg;
+  el.classList.remove('celebrate');
+  el.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function celebrateToast() {
+  const el = document.getElementById('toast');
+  el.textContent = '✓ 完了！';
+  el.classList.add('show', 'celebrate');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show', 'celebrate'); }, 2200);
+}
+
+function launchConfetti(originEl) {
+  const rect = originEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top  + rect.height / 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;';
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  const COLORS = ['#378ADD','#85B7EB','#B5D4F4','#FFD166','#06D6A0','#EF476F','#A78BFA','#FCD34D'];
+  const particles = Array.from({ length: 70 }, () => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 9 + 3;
+    return {
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 4,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      w: Math.random() * 10 + 5,
+      h: Math.random() * 6 + 3,
+      rot: Math.random() * 360,
+      rotV: (Math.random() - 0.5) * 14,
+      alpha: 1,
+      shape: Math.random() > 0.4 ? 'rect' : 'circle',
+    };
+  });
+
+  let raf;
+  (function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    particles.forEach(p => {
+      p.x  += p.vx;
+      p.y  += p.vy;
+      p.vy += 0.35;
+      p.vx *= 0.98;
+      p.rot += p.rotV;
+      p.alpha -= 0.016;
+      if (p.alpha <= 0) return;
+      alive = true;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.fillStyle = p.color;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.w / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+    if (alive) raf = requestAnimationFrame(draw);
+    else canvas.remove();
+  })();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
