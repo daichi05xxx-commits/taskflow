@@ -6,6 +6,7 @@
   <title>TaskFlow — タスク進捗管理</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.29.0/dist/tabler-icons.min.css" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
       --primary: #378ADD;
@@ -391,6 +392,71 @@
     .theme-preview-bar { height: 5px; border-radius: 2px; }
     .theme-preview-card { flex: 1; border-radius: 3px; border: 1px solid; }
     .theme-label { font-size: 11px; font-weight: 500; text-align: center; padding: 5px 4px; color: var(--text-secondary); background: var(--bg-card); }
+
+    /* ── Auth overlay ── */
+    .auth-overlay { z-index: 300; background: rgba(0,0,0,.55); backdrop-filter: blur(6px); }
+    .auth-card { width: 360px; max-width: calc(100vw - 32px); }
+    .auth-logo { text-align:center; margin-bottom:20px; }
+    .auth-logo .logo-dot { width:14px;height:14px;margin:0 auto 10px;background:var(--primary);border-radius:50%; }
+    .auth-logo h2 { font-size:20px;font-weight:700; }
+    .auth-logo p { font-size:13px;color:var(--text-secondary);margin-top:4px; }
+    .auth-err { color:var(--urgent);font-size:12px;min-height:18px;margin-bottom:6px; }
+    .auth-info { color:var(--primary);font-size:12px;min-height:18px;margin-bottom:6px; }
+
+    /* ── Sidebar user bar ── */
+    .sidebar-user { padding:10px 12px; display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); }
+    .user-avatar-sm { width:26px;height:26px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0; }
+    .user-email-disp { font-size:11px;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0; }
+
+    /* ── Mobile nav bar ── */
+    .mobile-nav { display:none; position:fixed; bottom:0; left:0; right:0; background:white; border-top:1px solid var(--border); z-index:50; padding-bottom:env(safe-area-inset-bottom,0); }
+    .mob-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:7px 2px 5px; cursor:pointer; color:var(--text-secondary); font-size:9px; gap:2px; min-width:0; -webkit-tap-highlight-color:transparent; }
+    .mob-item i { font-size:20px; }
+    .mob-item.active { color:var(--primary); }
+    .mob-item span { white-space:nowrap; overflow:hidden; max-width:100%; text-overflow:ellipsis; }
+
+    /* ── Supabase setup box ── */
+    .setup-box { background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-top:8px;font-size:12px;line-height:1.8;color:var(--text-secondary); }
+    .setup-box a { color:var(--primary); }
+    .setup-sql { background:white;border:1px solid var(--border);border-radius:6px;padding:10px;margin:8px 0;font-size:11px;overflow-x:auto;white-space:pre;line-height:1.5;font-family:monospace; }
+    .status-badge { display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:3px 10px;border-radius:12px; }
+    .status-badge.ok  { background:#dcfce7;color:#166534; }
+    .status-badge.off { background:#f3f4f6;color:var(--text-secondary); }
+
+    /* ── Responsive tablet (769–1024px): icon-only sidebar ── */
+    @media (min-width:769px) and (max-width:1024px) {
+      :root { --sidebar-w:62px; }
+      .sidebar { width:62px; }
+      .nav-item span, .logo-text, .sidebar-footer, .user-email-disp { display:none; }
+      .logo { justify-content:center; padding:18px 0; }
+      .nav-item { justify-content:center; padding:11px 0; }
+      .sidebar-user { justify-content:center; padding:10px 0; }
+      .sidebar-user .icon-btn { display:none; }
+    }
+
+    /* ── Responsive mobile (≤768px) ── */
+    @media (max-width:768px) {
+      .sidebar { display:none; }
+      .mobile-nav { display:flex; }
+      .content { padding:14px 12px 76px; }
+      .metrics { grid-template-columns:1fr 1fr; }
+      .dash-2col { grid-template-columns:1fr; gap:12px; }
+      .report-grid { grid-template-columns:1fr; }
+      .form-row { grid-template-columns:1fr; }
+      .modal { width:calc(100vw - 24px); max-width:calc(100vw - 24px); padding:18px; }
+      .theme-grid { grid-template-columns:repeat(3,1fr); }
+      .page-title { font-size:17px; }
+      .task-pg-toolbar { flex-wrap:wrap; }
+      .task-pg-toolbar .search-box { width:100%; }
+      .chat-wrap { height:calc(100svh - 185px); }
+      .chat-msg { max-width:93%; }
+      .toast { bottom:80px; right:12px; }
+      .bar-chart { height:80px; }
+      .metric-value { font-size:20px; }
+      .cal-day { min-height:52px; }
+      .settings-row { flex-wrap:wrap; gap:8px; }
+      [data-theme] .sidebar { display:none; }
+    }
   </style>
 </head>
 <canvas id="bgCanvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;display:none;"></canvas>
@@ -399,14 +465,19 @@
 
   <!-- ── Sidebar ── -->
   <div class="sidebar">
-    <div class="logo"><div class="logo-dot"></div>TaskFlow</div>
+    <div class="logo"><div class="logo-dot"></div><span class="logo-text">TaskFlow</span></div>
     <div class="nav-body">
-      <div class="nav-item active" onclick="navigate('dashboard')"><i class="ti ti-layout-dashboard"></i>ダッシュボード</div>
-      <div class="nav-item" onclick="navigate('tasks')"><i class="ti ti-checklist"></i>タスク一覧</div>
-      <div class="nav-item" onclick="navigate('chat')"><i class="ti ti-message-chatbot"></i>AIアシスタント</div>
-      <div class="nav-item" onclick="navigate('report')"><i class="ti ti-chart-bar"></i>進捗レポート</div>
-      <div class="nav-item" onclick="navigate('calendar')"><i class="ti ti-calendar"></i>カレンダー</div>
-      <div class="nav-item" onclick="navigate('settings')"><i class="ti ti-settings"></i>設定</div>
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')"><i class="ti ti-layout-dashboard"></i><span>ダッシュボード</span></div>
+      <div class="nav-item" data-page="tasks" onclick="navigate('tasks')"><i class="ti ti-checklist"></i><span>タスク一覧</span></div>
+      <div class="nav-item" data-page="chat" onclick="navigate('chat')"><i class="ti ti-message-chatbot"></i><span>AIアシスタント</span></div>
+      <div class="nav-item" data-page="report" onclick="navigate('report')"><i class="ti ti-chart-bar"></i><span>進捗レポート</span></div>
+      <div class="nav-item" data-page="calendar" onclick="navigate('calendar')"><i class="ti ti-calendar"></i><span>カレンダー</span></div>
+      <div class="nav-item" data-page="settings" onclick="navigate('settings')"><i class="ti ti-settings"></i><span>設定</span></div>
+    </div>
+    <div id="sidebarUser" class="sidebar-user" style="display:none;">
+      <div class="user-avatar-sm"><i class="ti ti-user-circle"></i></div>
+      <div class="user-email-disp" id="sidebarEmail"></div>
+      <button class="icon-btn" onclick="authLogout()" title="ログアウト"><i class="ti ti-logout"></i></button>
     </div>
     <div class="sidebar-footer">TaskFlow v1.0</div>
   </div>
@@ -635,6 +706,51 @@
         </div>
       </div>
 
+      <!-- ── ログイン設定 ── -->
+      <div class="card settings-card">
+        <h3><i class="ti ti-cloud-lock" style="font-size:14px;vertical-align:-2px;margin-right:4px;"></i>ログイン設定（クロスデバイス同期）</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">接続状態</div>
+            <div style="margin-top:4px;" id="supaStatus"><span class="status-badge off">未設定</span></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-primary" id="supaLoginBtn" onclick="showAuthOverlay()" style="display:none;"><i class="ti ti-login"></i> ログイン</button>
+            <button class="btn-ghost"   id="supaLogoutBtn" onclick="authLogout()" style="display:none;"><i class="ti ti-logout"></i> ログアウト</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:14px;">
+          <label class="form-label">Supabase Project URL</label>
+          <input type="text" id="settingSupaUrl" class="form-input" placeholder="https://xxxx.supabase.co" oninput="saveSupabaseConfig()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Supabase Anon Key</label>
+          <input type="text" id="settingSupaKey" class="form-input" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." oninput="saveSupabaseConfig()">
+        </div>
+        <details>
+          <summary style="font-size:12px;color:var(--primary);cursor:pointer;padding:4px 0;">▸ Supabaseの設定手順を見る（初回のみ）</summary>
+          <div class="setup-box">
+            <b style="color:var(--text-primary);">① </b><a href="https://supabase.com" target="_blank">supabase.com</a> で無料アカウントを作成し、新しいプロジェクトを作ります。<br>
+            <b style="color:var(--text-primary);">② </b>プロジェクトの Settings &gt; API から「Project URL」と「anon public key」をコピーして上に貼り付けます。<br>
+            <b style="color:var(--text-primary);">③ </b>Table Editor の SQL Editor で以下のSQLを実行します：
+            <pre class="setup-sql">create table user_data (
+  user_id uuid primary key references auth.users on delete cascade,
+  tasks jsonb default '[]',
+  todos jsonb default '[]',
+  schedules jsonb default '[]',
+  settings_data jsonb default '{}'
+);
+alter table user_data enable row level security;
+create policy "own" on user_data for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);</pre>
+            <button onclick="copySetupSQL()" class="btn-ghost" style="font-size:11px;"><i class="ti ti-copy"></i> SQLをコピー</button><br>
+            <b style="color:var(--text-primary);">④ </b>上のフォームにURLとキーを入力 → ログインまたは新規アカウント作成。<br>
+            <b style="color:var(--text-primary);">⑤ </b>他のデバイスでも同じURL・キーを入力して同じメールアドレスでログインするとデータが同期されます。
+          </div>
+        </details>
+      </div>
+
       <div class="card settings-card">
         <h3>データ管理</h3>
         <div class="settings-row">
@@ -749,20 +865,58 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- ── Mobile nav bar ── -->
+<div class="mobile-nav">
+  <div class="mob-item active" data-page="dashboard" onclick="navigate('dashboard')"><i class="ti ti-layout-dashboard"></i><span>ホーム</span></div>
+  <div class="mob-item" data-page="tasks"     onclick="navigate('tasks')"    ><i class="ti ti-checklist"></i><span>タスク</span></div>
+  <div class="mob-item" data-page="chat"      onclick="navigate('chat')"     ><i class="ti ti-message-chatbot"></i><span>AI</span></div>
+  <div class="mob-item" data-page="report"    onclick="navigate('report')"   ><i class="ti ti-chart-bar"></i><span>レポート</span></div>
+  <div class="mob-item" data-page="calendar"  onclick="navigate('calendar')" ><i class="ti ti-calendar"></i><span>カレンダー</span></div>
+  <div class="mob-item" data-page="settings"  onclick="navigate('settings')" ><i class="ti ti-settings"></i><span>設定</span></div>
+</div>
+
+<!-- ── Auth Overlay ── -->
+<div class="overlay auth-overlay" id="authOverlay">
+  <div class="modal auth-card">
+    <div class="auth-logo">
+      <div class="logo-dot"></div>
+      <h2>TaskFlow</h2>
+      <p>ログインしてデータを同期</p>
+    </div>
+    <div class="auth-err"  id="authError"></div>
+    <div class="auth-info" id="authMsg"></div>
+    <div class="form-group">
+      <label class="form-label">メールアドレス</label>
+      <input type="email" id="authEmail" class="form-input" placeholder="your@email.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label">パスワード</label>
+      <input type="password" id="authPass" class="form-input" placeholder="••••••••"
+        onkeydown="if(event.key==='Enter')authLogin()">
+    </div>
+    <button class="btn-primary" style="width:100%;margin-bottom:8px;" onclick="authLogin()"><i class="ti ti-login"></i> ログイン</button>
+    <button class="btn-ghost"   style="width:100%;margin-bottom:8px;" onclick="authSignup()"><i class="ti ti-user-plus"></i> 新規アカウント作成</button>
+    <button class="btn-ghost"   style="width:100%;font-size:11px;color:var(--text-secondary);" onclick="closeAuthOverlay()">ログインせずに使用する（このデバイスのみ）</button>
+  </div>
+</div>
+
 <script>
 // ─── Storage ──────────────────────────────────────────────────────────────────
 const KEYS = { tasks:'tf_tasks', schedule:'tf_sched', settings:'tf_settings', todos:'tf_todos' };
 const dbGet = (k, d=[]) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const dbSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
+// Supabase state (populated later)
+let supaClient = null, currentUser = null, syncDebounceTimer = null;
+
 const getTasks    = ()  => dbGet(KEYS.tasks);
-const setTasks    = (v) => dbSet(KEYS.tasks, v);
+const setTasks    = (v) => { dbSet(KEYS.tasks, v);    scheduleSync(); };
 const getSched    = ()  => dbGet(KEYS.schedule);
-const setSched    = (v) => dbSet(KEYS.schedule, v);
+const setSched    = (v) => { dbSet(KEYS.schedule, v); scheduleSync(); };
 const getSettings = ()  => dbGet(KEYS.settings, {});
-const setSettings = (v) => dbSet(KEYS.settings, v);
+const setSettings = (v) => { dbSet(KEYS.settings, v); scheduleSync(); };
 const getTodos    = ()  => dbGet(KEYS.todos);
-const setTodos    = (v) => dbSet(KEYS.todos, v);
+const setTodos    = (v) => { dbSet(KEYS.todos, v);    scheduleSync(); };
 
 const uid      = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const todayStr = () => new Date().toISOString().split('T')[0];
@@ -899,7 +1053,7 @@ let reportWeekChart = null, statusChart = null;
 function navigate(page) {
   PAGES.forEach(p => {
     document.getElementById(`page-${p}`).classList.toggle('active', p === page);
-    document.querySelectorAll('.nav-item')[PAGES.indexOf(p)].classList.toggle('active', p === page);
+    document.querySelectorAll(`[data-page="${p}"]`).forEach(el => el.classList.toggle('active', p === page));
   });
   currentPage = page;
   renderPage(page);
@@ -1960,9 +2114,12 @@ function renderSettings() {
   const s = getSettings();
   document.getElementById('settingUserName').value = s.userName || '';
   document.getElementById('settingApiKey').value   = s.apiKey   || '';
+  document.getElementById('settingSupaUrl').value  = s.supaUrl  || '';
+  document.getElementById('settingSupaKey').value  = s.supaKey  || '';
   renderThemeGrid();
   renderGroupList();
   renderCategoryList();
+  updateAuthUI(!!currentUser);
 }
 
 function saveApiKey() {
@@ -2011,7 +2168,12 @@ function exportData() {
 
 function resetData() {
   if (!confirm('すべてのデータを削除しますか？\nこの操作は元に戻せません。')) return;
-  Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+  const s = getSettings();
+  [KEYS.tasks, KEYS.schedule, KEYS.todos].forEach(k => localStorage.removeItem(k));
+  dbSet(KEYS.settings, { supaUrl: s.supaUrl, supaKey: s.supaKey, theme: s.theme, userName: s.userName });
+  if (supaClient && currentUser) {
+    supaClient.from('user_data').upsert({ user_id: currentUser.id, tasks:[], todos:[], schedules:[], settings_data:{} }, { onConflict:'user_id' }).then(()=>{});
+  }
   renderPage(currentPage);
   toast('データをリセットしました');
 }
@@ -2103,11 +2265,182 @@ function launchConfetti(originEl) {
   })();
 }
 
+// ─── Supabase auth & cross-device sync ───────────────────────────────────────
+
+function scheduleSync() {
+  clearTimeout(syncDebounceTimer);
+  syncDebounceTimer = setTimeout(syncUp, 2000);
+}
+
+function initSupabase() {
+  const s = getSettings();
+  const url = s.supaUrl || '', key = s.supaKey || '';
+  if (!url || !key) return;
+  try {
+    supaClient = window.supabase.createClient(url, key);
+  } catch(e) { console.warn('Supabase init failed', e); supaClient = null; }
+}
+
+async function checkAuthState() {
+  if (!supaClient) { updateAuthUI(false); return; }
+  try {
+    const { data: { session } } = await supaClient.auth.getSession();
+    if (session?.user) {
+      currentUser = session.user;
+      updateAuthUI(true);
+      await syncDown();
+      renderPage(currentPage);
+    } else {
+      currentUser = null;
+      updateAuthUI(false);
+      showAuthOverlay();
+    }
+    supaClient.auth.onAuthStateChange((_ev, session) => {
+      currentUser = session?.user ?? null;
+      updateAuthUI(!!currentUser);
+    });
+  } catch(e) { console.warn('checkAuthState failed', e); }
+}
+
+function showAuthOverlay() {
+  const s = getSettings();
+  if (!s.supaUrl || !s.supaKey) return;
+  document.getElementById('authOverlay').classList.add('open');
+}
+
+function closeAuthOverlay() {
+  document.getElementById('authOverlay').classList.remove('open');
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authMsg').textContent = '';
+}
+
+function updateAuthUI(loggedIn) {
+  document.getElementById('authOverlay').classList.remove('open');
+  const userBar   = document.getElementById('sidebarUser');
+  const emailEl   = document.getElementById('sidebarEmail');
+  const statusEl  = document.getElementById('supaStatus');
+  const loginBtn  = document.getElementById('supaLoginBtn');
+  const logoutBtn = document.getElementById('supaLogoutBtn');
+  const s = getSettings();
+  const configured = !!(s.supaUrl && s.supaKey);
+
+  if (loggedIn && currentUser) {
+    if (userBar)  userBar.style.display  = 'flex';
+    if (emailEl)  emailEl.textContent    = currentUser.email;
+    if (statusEl) statusEl.innerHTML     = `<span class="status-badge ok"><i class="ti ti-check" style="font-size:11px;"></i> ログイン中: ${escHtml(currentUser.email)}</span>`;
+    if (loginBtn)  loginBtn.style.display  = 'none';
+    if (logoutBtn) logoutBtn.style.display = '';
+  } else {
+    if (userBar)  userBar.style.display  = 'none';
+    if (statusEl) statusEl.innerHTML     = configured
+      ? '<span class="status-badge off">ログアウト中</span>'
+      : '<span class="status-badge off">Supabase未設定</span>';
+    if (loginBtn)  loginBtn.style.display  = configured ? '' : 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
+  }
+}
+
+async function syncUp() {
+  if (!supaClient || !currentUser) return;
+  try {
+    const { supaUrl, supaKey, ...settingsToSave } = getSettings();
+    await supaClient.from('user_data').upsert({
+      user_id: currentUser.id,
+      tasks: getTasks(),
+      todos: getTodos(),
+      schedules: getSched(),
+      settings_data: settingsToSave,
+    }, { onConflict: 'user_id' });
+  } catch(e) { console.warn('syncUp failed', e); }
+}
+
+async function syncDown() {
+  if (!supaClient || !currentUser) return;
+  try {
+    const { data, error } = await supaClient
+      .from('user_data').select('*').eq('user_id', currentUser.id).maybeSingle();
+    if (error) { console.warn('syncDown error', error); return; }
+    if (!data) return;
+    if (Array.isArray(data.tasks))     dbSet(KEYS.tasks,    data.tasks);
+    if (Array.isArray(data.todos))     dbSet(KEYS.todos,    data.todos);
+    if (Array.isArray(data.schedules)) dbSet(KEYS.schedule, data.schedules);
+    if (data.settings_data && typeof data.settings_data === 'object') {
+      const { supaUrl, supaKey } = getSettings();
+      dbSet(KEYS.settings, { ...data.settings_data, supaUrl, supaKey });
+    }
+  } catch(e) { console.warn('syncDown failed', e); }
+}
+
+async function authLogin() {
+  if (!supaClient) { document.getElementById('authError').textContent = 'SupabaseのURLとキーを設定してください'; return; }
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authMsg').textContent   = '';
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPass').value;
+  if (!email || !pass) { document.getElementById('authError').textContent = 'メールアドレスとパスワードを入力してください'; return; }
+  const { data, error } = await supaClient.auth.signInWithPassword({ email, password: pass });
+  if (error) { document.getElementById('authError').textContent = error.message; return; }
+  currentUser = data.user;
+  updateAuthUI(true);
+  await syncDown();
+  renderPage(currentPage);
+  toast('ログインしました ✓');
+}
+
+async function authSignup() {
+  if (!supaClient) { document.getElementById('authError').textContent = 'SupabaseのURLとキーを設定してください'; return; }
+  document.getElementById('authError').textContent = '';
+  document.getElementById('authMsg').textContent   = '';
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPass').value;
+  if (!email || !pass) { document.getElementById('authError').textContent = 'メールアドレスとパスワードを入力してください'; return; }
+  if (pass.length < 6) { document.getElementById('authError').textContent = 'パスワードは6文字以上にしてください'; return; }
+  const { error } = await supaClient.auth.signUp({ email, password: pass });
+  if (error) { document.getElementById('authError').textContent = error.message; return; }
+  document.getElementById('authMsg').textContent = '確認メールを送信しました。メールを確認してからログインしてください。';
+}
+
+async function authLogout() {
+  if (!supaClient) return;
+  await supaClient.auth.signOut();
+  currentUser = null;
+  updateAuthUI(false);
+  toast('ログアウトしました');
+}
+
+function saveSupabaseConfig() {
+  const url = document.getElementById('settingSupaUrl')?.value.trim() || '';
+  const key = document.getElementById('settingSupaKey')?.value.trim() || '';
+  const s   = getSettings();
+  s.supaUrl = url; s.supaKey = key;
+  dbSet(KEYS.settings, s); // direct write, don't trigger sync
+  supaClient = null; currentUser = null;
+  if (url && key) { initSupabase(); checkAuthState(); } else { updateAuthUI(false); }
+}
+
+function copySetupSQL() {
+  const sql = `create table user_data (
+  user_id uuid primary key references auth.users on delete cascade,
+  tasks jsonb default '[]',
+  todos jsonb default '[]',
+  schedules jsonb default '[]',
+  settings_data jsonb default '{}'
+);
+alter table user_data enable row level security;
+create policy "own" on user_data for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);`;
+  navigator.clipboard.writeText(sql).then(() => toast('SQLをコピーしました'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
   calYear = now.getFullYear(); calMonth = now.getMonth();
-  // 保存済みテーマを復元
   applyTheme(getSettings().theme || 'default');
+  initSupabase();
+  checkAuthState();
   renderDashboard();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
