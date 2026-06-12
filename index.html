@@ -769,15 +769,7 @@ const todayStr = () => new Date().toISOString().split('T')[0];
 const escHtml  = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 // ─── ① グループ管理 ────────────────────────────────────────────────────────────
-const DEFAULT_GROUPS = [
-  { id:'g_test',  name:'テスト' },
-  { id:'g_kadai', name:'課題'   },
-  { id:'g_dev',   name:'開発'   },
-  { id:'g_wing',  name:'WING'   },
-];
-const DEFAULT_GROUP_IDS = DEFAULT_GROUPS.map(g => g.id);
-
-function getGroups() { return getSettings().groups || DEFAULT_GROUPS; }
+function getGroups() { return getSettings().groups || []; }
 
 function populateGroupSelect(currentValue) {
   const sel = document.getElementById('taskGroup');
@@ -792,18 +784,11 @@ function renderGroupList() {
   if (!el) return;
   const groups = getGroups();
   if (groups.length === 0) { el.innerHTML = '<div class="empty" style="padding:12px 0;"><p>グループがありません</p></div>'; return; }
-  el.innerHTML = groups.map(g => {
-    const isDef = DEFAULT_GROUP_IDS.includes(g.id);
-    return `<div class="cat-row">
-      <div class="cat-preview">
-        <span style="font-size:13px;">${escHtml(g.name)}</span>
-        ${isDef ? '<span class="default-badge">デフォルト</span>' : ''}
-      </div>
-      ${isDef
-        ? '<span style="font-size:11px;color:var(--text-secondary);">削除不可</span>'
-        : `<button class="icon-btn del" onclick="deleteGroup('${g.id}')" title="削除"><i class="ti ti-trash"></i></button>`}
-    </div>`;
-  }).join('');
+  el.innerHTML = groups.map(g => `
+    <div class="cat-row">
+      <span style="font-size:13px;">${escHtml(g.name)}</span>
+      <button class="icon-btn del" onclick="deleteGroup('${g.id}')" title="削除"><i class="ti ti-trash"></i></button>
+    </div>`).join('');
 }
 
 function addGroup() {
@@ -819,7 +804,6 @@ function addGroup() {
 }
 
 function deleteGroup(id) {
-  if (DEFAULT_GROUP_IDS.includes(id)) return;
   if (!confirm('このグループを削除しますか？\n（そのグループのタスクはグループなしになります）')) return;
   const s = getSettings();
   s.groups = getGroups().filter(g => g.id !== id);
