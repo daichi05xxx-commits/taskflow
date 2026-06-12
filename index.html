@@ -203,6 +203,19 @@
     .cal-ev { font-size: 10px; padding: 1px 4px; border-radius: 3px; background: var(--primary-light); color: var(--primary-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
     .cal-ev.urgent-ev { background: #fee2e2; color: var(--urgent-dark); }
     .cal-ev.cal-ev-sched { background: #e0f2fe; color: #0369a1; }
+    .cal-day:not(.other) { cursor: pointer; }
+    .cal-day:not(.other):hover { background: var(--primary-light); }
+    .day-detail-item { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid var(--border); }
+    .day-detail-item:last-child { border-bottom:none; }
+    .day-detail-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+    .day-detail-dot.task-todo { background:#94a3b8; border:1.5px solid #94a3b8; }
+    .day-detail-dot.task-doing { background:var(--primary); }
+    .day-detail-dot.task-done { background:#22c55e; }
+    .day-detail-dot.sched { background:#0369a1; }
+    .day-detail-name { font-size:14px; font-weight:500; color:var(--text); }
+    .day-detail-sub { font-size:12px; color:var(--text-secondary); margin-top:2px; }
+    .day-detail-badge { font-size:11px; padding:1px 7px; border-radius:10px; margin-left:6px; }
+    .day-detail-empty { text-align:center; color:var(--text-secondary); padding:24px 0; font-size:14px; }
 
     /* ── Settings ── */
     .settings-card { margin-bottom: 16px; }
@@ -861,6 +874,17 @@ create policy "own" on user_data for all
       <button class="btn-ghost" onclick="closeModal('schedModal')">キャンセル</button>
       <button class="btn-primary" onclick="saveSchedule()">保存</button>
     </div>
+  </div>
+</div>
+
+<!-- ── Day Detail Modal ── -->
+<div class="overlay" id="dayDetailModal" onclick="closeDayDetail(event)">
+  <div class="modal" style="width:420px;" onclick="event.stopPropagation()">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <h3 id="dayDetailTitle" style="margin:0;"></h3>
+      <button onclick="closeDayDetail()" style="background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-secondary);line-height:1;">×</button>
+    </div>
+    <div id="dayDetailBody"></div>
   </div>
 </div>
 
@@ -1634,7 +1658,7 @@ function renderCalendar() {
       const t = e.item;
       return `<div class="cal-ev ${t.deadline<tStr&&t.status!=='done'?'urgent-ev':''}">${escHtml(t.name)}</div>`;
     }).join('');
-    html += `<div class="cal-day${ds===tStr?' today':''}">
+    html += `<div class="cal-day${ds===tStr?' today':''}" onclick="showDayDetail('${ds}')">
       <div class="cal-day-num">${d}</div>
       ${evtHtml}
       ${evts.length>3?`<div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">+${evts.length-3}件</div>`:''}
@@ -1648,6 +1672,55 @@ function renderCalendar() {
 function calPrev()  { if (--calMonth<0)  { calMonth=11; calYear--; } renderCalendar(); }
 function calNext()  { if (++calMonth>11) { calMonth=0;  calYear++; } renderCalendar(); }
 function calToday() { const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); renderCalendar(); }
+
+function showDayDetail(ds) {
+  const [y, mo, d] = ds.split('-').map(Number);
+  const dow = ['日','月','火','水','木','金','土'][new Date(y, mo-1, d).getDay()];
+  document.getElementById('dayDetailTitle').textContent = `${mo}月${d}日（${dow}）`;
+
+  const tasks  = getTasks().filter(t => t.deadline === ds);
+  const scheds = getSched().filter(s => s.date === ds);
+  const tStr   = todayStr();
+
+  let html = '';
+  scheds.sort((a,b) => (a.startTime||'').localeCompare(b.startTime||'')).forEach(s => {
+    const endMin = (h => h[0]*60 + h[1])((s.startTime||'00:00').split(':').map(Number)) + (s.duration||60);
+    const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
+    html += `<div class="day-detail-item">
+      <div class="day-detail-dot sched"></div>
+      <div>
+        <div class="day-detail-name">⏰ ${escHtml(s.title)}</div>
+        <div class="day-detail-sub">${s.startTime||'--:--'} 〜 ${endStr}（${s.duration||60}分）</div>
+      </div>
+    </div>`;
+  });
+
+  const statusLabel = { todo:'未着手', doing:'進行中', done:'完了' };
+  const statusClass = { todo:'task-todo', doing:'task-doing', done:'task-done' };
+  const statusColor = { todo:'#94a3b8', doing:'var(--primary)', done:'#22c55e' };
+  tasks.forEach(t => {
+    const isUrgent = t.deadline < tStr && t.status !== 'done';
+    html += `<div class="day-detail-item">
+      <div class="day-detail-dot ${statusClass[t.status]||'task-todo'}"></div>
+      <div style="flex:1;">
+        <div class="day-detail-name">${escHtml(t.name)}${isUrgent?'<span class="day-detail-badge" style="background:#fee2e2;color:var(--urgent-dark);">期限超過</span>':''}</div>
+        <div class="day-detail-sub">
+          <span style="color:${statusColor[t.status]||'#94a3b8'}">${statusLabel[t.status]||'未着手'}</span>
+          ${t.progress>0?` · 進捗 ${t.progress}%`:''}
+        </div>
+      </div>
+    </div>`;
+  });
+
+  if (!html) html = '<div class="day-detail-empty">この日の予定はありません</div>';
+  document.getElementById('dayDetailBody').innerHTML = html;
+  openModal('dayDetailModal');
+}
+
+function closeDayDetail(e) {
+  if (e && e.target !== document.getElementById('dayDetailModal')) return;
+  closeModal('dayDetailModal');
+}
 
 // ─── AI Chat ──────────────────────────────────────────────────────────────────
 let chatHistory = [];
