@@ -276,167 +276,78 @@
     ::-webkit-scrollbar-track { background: transparent; }
 
     /* ════════════════════════════════════════
-       THEMES
+       THEMES — 白基調 + canvas動く背景
     ════════════════════════════════════════ */
 
-    /* ── Cyber ── */
+    /* 共通: テーマ時はbody/appを透過してcanvasを見せる */
+    [data-theme] body  { background: transparent !important; }
+    [data-theme] .app  { background: transparent !important; }
+    [data-theme] .content { background: transparent; }
+
+    /* 共通: カード・テキストはすべて白/黒で読みやすく */
+    [data-theme] .card,
+    [data-theme] .task-full,
+    [data-theme] .metric-card,
+    [data-theme] .modal,
+    [data-theme] .filter-btn,
+    [data-theme] .group-tab,
+    [data-theme] .search-box,
+    [data-theme] .form-input,
+    [data-theme] .form-select { background: rgba(255,255,255,0.92) !important; color: #111827 !important; }
+    [data-theme] .form-input::placeholder,
+    [data-theme] .form-select { color: #6B7280; }
+    [data-theme] .search-box input { background: transparent !important; color: #111827 !important; }
+    [data-theme] .task-info .tname,
+    [data-theme] .tmeta,
+    [data-theme] .metric-label,
+    [data-theme] .metric-value,
+    [data-theme] .section-title,
+    [data-theme] .page-title,
+    [data-theme] .page-sub { color: inherit; }
+    [data-theme] .sidebar { background: rgba(255,255,255,0.88) !important; backdrop-filter: blur(14px); }
+    [data-theme] .overlay { background: rgba(0,0,0,.35); backdrop-filter: blur(8px); }
+    [data-theme] .modal { border-radius: var(--radius); box-shadow: 0 20px 60px rgba(0,0,0,.18); }
+
+    /* ── Cyber: 電脳空間 ── */
     [data-theme="cyber"] {
-      --primary: #00d4ff; --primary-dark: #008fcc; --primary-light: #001f30;
-      --primary-mid: #00a8d4; --primary-pale: #002d42;
-      --bg: #060c1a; --bg-card: #0c1526; --text-primary: #c8dce8;
-      --text-secondary: #3d6070; --border: #162436;
-      --urgent: #ff4f6a; --urgent-dark: #cc1f3a;
-      --warning-bg: #1a1000; --radius: 6px; --radius-sm: 4px;
+      --primary: #0284c7; --primary-dark: #0369a1;
+      --primary-light: #e0f2fe; --primary-mid: #38bdf8; --primary-pale: #bae6fd;
+      --border: #bae6fd;
     }
-    [data-theme="cyber"] body {
-      background: radial-gradient(ellipse at 10% 30%, #0a1a2e 0%, #060c1a 60%);
-      min-height: 100vh;
-    }
-    [data-theme="cyber"] .sidebar {
-      background: #050a15;
-      background-image:
-        linear-gradient(rgba(0,212,255,.04) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(0,212,255,.04) 1px, transparent 1px);
-      background-size: 22px 22px;
-      border-right-color: #0e2030;
-    }
-    [data-theme="cyber"] .card,
-    [data-theme="cyber"] .task-full,
-    [data-theme="cyber"] .metric-card {
-      border-color: rgba(0,212,255,.12);
-      box-shadow: 0 0 18px rgba(0,212,255,.06), inset 0 0 0 0.5px rgba(0,212,255,.04);
-    }
-    [data-theme="cyber"] .metric-card.accent { border-top-color: var(--primary); box-shadow: 0 0 24px rgba(0,212,255,.15); }
-    [data-theme="cyber"] .btn-primary { box-shadow: 0 0 14px rgba(0,212,255,.35); }
-    [data-theme="cyber"] .nav-item.active { text-shadow: 0 0 10px var(--primary); }
-    [data-theme="cyber"] .logo-dot { box-shadow: 0 0 10px #00d4ff; animation: cyberPulse 2s ease-in-out infinite; }
-    [data-theme="cyber"] .page-title { letter-spacing: .04em; }
-    [data-theme="cyber"] .form-input,
-    [data-theme="cyber"] .form-select { background: #0c1526; color: var(--text-primary); border-color: #162436; }
-    [data-theme="cyber"] .modal { background: #0c1526; }
-    [data-theme="cyber"] .pbar-wrap { background: #001f30; }
-    [data-theme="cyber"] .filter-btn,
-    [data-theme="cyber"] .group-tab { background: #0c1526; color: var(--text-secondary); border-color: #162436; }
-    [data-theme="cyber"] .filter-btn.active,
-    [data-theme="cyber"] .group-tab.active { background: #001f30; border-color: var(--primary); color: var(--primary); }
-    [data-theme="cyber"] .search-box { background: #0c1526; border-color: #162436; }
-    [data-theme="cyber"] .search-box input { color: var(--text-primary); }
-    [data-theme="cyber"] .tag { border: 1px solid rgba(0,212,255,.2); }
-    [data-theme="cyber"] .overlay { background: rgba(0,10,20,.6); backdrop-filter: blur(8px); }
-    @keyframes cyberPulse { 0%,100% { box-shadow: 0 0 6px #00d4ff; } 50% { box-shadow: 0 0 16px #00d4ff, 0 0 30px rgba(0,212,255,.3); } }
-    /* サイバー: スキャンライン */
-    [data-theme="cyber"] .content::after {
-      content: '';
-      position: fixed; inset: 0; pointer-events: none; z-index: 1000;
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px);
-    }
+    [data-theme="cyber"] .sidebar { border-right-color: #bae6fd !important; }
+    [data-theme="cyber"] .metric-card.accent { border-top: 3px solid #0284c7 !important; }
+    [data-theme="cyber"] .logo-dot { animation: cyberPulse 2s ease-in-out infinite; }
+    @keyframes cyberPulse { 0%,100%{ box-shadow:0 0 4px #0284c7; } 50%{ box-shadow:0 0 14px #0284c7, 0 0 28px rgba(2,132,199,.3); } }
 
-    /* ── Math ── */
+    /* ── Math: 数学空間 ── */
     [data-theme="math"] {
-      --primary: #39d353; --primary-dark: #1a7a2a; --primary-light: #051a0a;
-      --primary-mid: #2cb045; --primary-pale: #0a2e12;
-      --bg: #0d1117; --bg-card: #161b22; --text-primary: #c9d1d9;
-      --text-secondary: #444c56; --border: #21262d;
-      --urgent: #f85149; --urgent-dark: #b91c1c;
-      --warning-bg: #161200; --radius: 4px; --radius-sm: 3px;
+      --primary: #7c3aed; --primary-dark: #5b21b6;
+      --primary-light: #ede9fe; --primary-mid: #a78bfa; --primary-pale: #c4b5fd;
+      --border: #c4b5fd;
     }
-    [data-theme="math"] body {
-      background: #0d1117;
-      background-image:
-        linear-gradient(rgba(57,211,83,.06) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(57,211,83,.06) 1px, transparent 1px);
-      background-size: 32px 32px;
-      font-family: 'Courier New', 'SF Mono', monospace;
-    }
-    [data-theme="math"] .sidebar { background: #0d1117; border-right-color: #21262d; }
-    [data-theme="math"] .card,
-    [data-theme="math"] .task-full,
-    [data-theme="math"] .metric-card { border-color: #21262d; border-radius: 3px; }
-    [data-theme="math"] .metric-card.accent { border-top-color: var(--primary); }
-    [data-theme="math"] .btn-primary { font-family: 'Courier New', monospace; letter-spacing: .05em; }
-    [data-theme="math"] .logo::after { content: " f(x)"; color: var(--primary); opacity: .5; font-size: 11px; }
-    [data-theme="math"] .page-title::before { content: ">> "; color: var(--primary); opacity: .6; }
-    [data-theme="math"] .form-input,
-    [data-theme="math"] .form-select { background: #0d1117; color: var(--text-primary); border-color: #21262d; font-family: 'Courier New', monospace; }
-    [data-theme="math"] .modal { background: #161b22; }
-    [data-theme="math"] .filter-btn,
-    [data-theme="math"] .group-tab { background: #161b22; color: var(--text-secondary); border-color: #21262d; font-family: inherit; }
-    [data-theme="math"] .filter-btn.active,
-    [data-theme="math"] .group-tab.active { background: #051a0a; border-color: var(--primary); color: var(--primary); }
-    [data-theme="math"] .search-box { background: #161b22; border-color: #21262d; }
-    [data-theme="math"] .search-box input { color: var(--text-primary); font-family: inherit; }
-    [data-theme="math"] .overlay { background: rgba(0,0,0,.75); backdrop-filter: blur(4px); }
-    [data-theme="math"] .pbar-wrap { background: #0a2e12; }
-    [data-theme="math"] .nav-item.active { color: var(--primary); }
+    [data-theme="math"] .sidebar { border-right-color: #c4b5fd !important; }
+    [data-theme="math"] .metric-card.accent { border-top: 3px solid #7c3aed !important; }
 
-    /* ── Underwater ── */
+    /* ── Water: 水中 ── */
     [data-theme="water"] {
-      --primary: #0ea5e9; --primary-dark: #0369a1; --primary-light: #082f49;
-      --primary-mid: #38bdf8; --primary-pale: #0c4a6e;
-      --bg: #071e38; --bg-card: rgba(8,40,72,.82); --text-primary: #bae6fd;
-      --text-secondary: #336080; --border: rgba(14,165,233,.18);
-      --urgent: #f87171; --urgent-dark: #b91c1c;
-      --warning-bg: #1a1000;
+      --primary: #0891b2; --primary-dark: #0e7490;
+      --primary-light: #cffafe; --primary-mid: #22d3ee; --primary-pale: #a5f3fc;
+      --border: #a5f3fc;
     }
-    [data-theme="water"] body {
-      background: linear-gradient(160deg, #0a2a48 0%, #041120 100%);
-      min-height: 100vh; overflow: hidden;
-    }
-    [data-theme="water"] .app { position: relative; }
-    [data-theme="water"] .sidebar {
-      background: rgba(5,15,30,.9);
-      border-right: 1px solid rgba(14,165,233,.15);
-      backdrop-filter: blur(12px);
-    }
-    [data-theme="water"] .content { position: relative; z-index: 1; }
+    [data-theme="water"] .sidebar { border-right-color: #a5f3fc !important; }
+    [data-theme="water"] .metric-card.accent { border-top: 3px solid #0891b2 !important; }
     [data-theme="water"] .card,
     [data-theme="water"] .task-full,
-    [data-theme="water"] .metric-card {
-      background: rgba(8,40,72,.75);
-      backdrop-filter: blur(10px);
-      border-color: rgba(14,165,233,.18);
-      box-shadow: 0 4px 24px rgba(14,165,233,.08);
-    }
-    [data-theme="water"] .metric-card.accent { border-top-color: var(--primary); }
-    [data-theme="water"] .form-input,
-    [data-theme="water"] .form-select { background: rgba(5,20,40,.8); color: var(--text-primary); border-color: rgba(14,165,233,.2); }
-    [data-theme="water"] .modal { background: rgba(6,25,50,.95); backdrop-filter: blur(16px); border: 1px solid rgba(14,165,233,.2); }
-    [data-theme="water"] .overlay { background: rgba(0,10,25,.6); backdrop-filter: blur(10px); }
-    [data-theme="water"] .filter-btn,
-    [data-theme="water"] .group-tab { background: rgba(8,40,72,.6); color: var(--text-secondary); border-color: rgba(14,165,233,.15); }
-    [data-theme="water"] .filter-btn.active,
-    [data-theme="water"] .group-tab.active { background: #082f49; border-color: var(--primary); color: var(--primary); }
-    [data-theme="water"] .search-box { background: rgba(8,40,72,.6); border-color: rgba(14,165,233,.15); }
-    [data-theme="water"] .search-box input { color: var(--text-primary); background: transparent; }
-    [data-theme="water"] .pbar-wrap { background: #082f49; }
-    /* 泡アニメーション */
-    .bubble { position: fixed; border-radius: 50%; background: rgba(14,165,233,.12); border: 1px solid rgba(14,165,233,.2); pointer-events: none; animation: floatUp linear infinite; z-index: 0; }
-    @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: .6; } 100% { transform: translateY(-110vh) scale(1.3); opacity: 0; } }
+    [data-theme="water"] .metric-card { backdrop-filter: blur(12px) !important; box-shadow: 0 4px 20px rgba(8,145,178,.1); }
 
-    /* ── Nature ── */
+    /* ── Nature: 大自然 ── */
     [data-theme="nature"] {
-      --primary: #2d6a4f; --primary-dark: #1b4332; --primary-light: #d8f3dc;
-      --primary-mid: #52b788; --primary-pale: #95d5b2;
-      --bg: #f0f4f0; --bg-card: #ffffff; --text-primary: #1b3a2d;
-      --text-secondary: #52796f; --border: #c8dfc8;
-      --urgent: #bc4749; --urgent-dark: #7a2828;
-      --warning: #dda15e; --warning-dark: #8a5a20; --warning-bg: #fef3e2;
+      --primary: #16a34a; --primary-dark: #166534;
+      --primary-light: #dcfce7; --primary-mid: #4ade80; --primary-pale: #bbf7d0;
+      --border: #bbf7d0;
     }
-    [data-theme="nature"] body { background: #f0f4f0; }
-    [data-theme="nature"] .sidebar {
-      background: linear-gradient(180deg, #edf5ec 0%, #e4f0e3 100%);
-      border-right-color: #c0d9be;
-    }
-    [data-theme="nature"] .metric-card.accent { border-top-color: var(--primary); }
-    [data-theme="nature"] .logo-dot { background: #2d6a4f; }
-    [data-theme="nature"] .btn-primary { background: #2d6a4f; }
-    [data-theme="nature"] .btn-primary:hover { background: #1b4332; }
-    [data-theme="nature"] .filter-btn.active,
-    [data-theme="nature"] .group-tab.active { background: #d8f3dc; border-color: var(--primary); color: var(--primary-dark); }
-    [data-theme="nature"] .pbar { background: #52b788; }
-    [data-theme="nature"] .pbar-wrap { background: #d8f3dc; }
-    [data-theme="nature"] .task-full:hover,
-    [data-theme="nature"] .task-card:hover { border-color: #52b788; }
+    [data-theme="nature"] .sidebar { border-right-color: #bbf7d0 !important; }
+    [data-theme="nature"] .metric-card.accent { border-top: 3px solid #16a34a !important; }
 
     /* ── Chat ── */
     .chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 140px); }
@@ -482,6 +393,7 @@
     .theme-label { font-size: 11px; font-weight: 500; text-align: center; padding: 5px 4px; color: var(--text-secondary); background: var(--bg-card); }
   </style>
 </head>
+<canvas id="bgCanvas" style="position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none;display:none;"></canvas>
 <body>
 <div class="app">
 
@@ -1838,69 +1750,236 @@ function removeTypingIndicator(id) {
 
 // ─── Themes ───────────────────────────────────────────────────────────────────
 const THEMES = [
-  {
-    id: 'default', name: 'デフォルト',
-    sidebar: '#ffffff', content: '#f8fafc', bar: '#378ADD', card: '#ffffff', cardBorder: '#E5E7EB',
-  },
-  {
-    id: 'cyber', name: 'サイバー',
-    sidebar: '#050a15', content: '#060c1a', bar: '#00d4ff', card: '#0c1526', cardBorder: 'rgba(0,212,255,.2)',
-  },
-  {
-    id: 'math', name: '数学',
-    sidebar: '#0d1117', content: '#0d1117', bar: '#39d353', card: '#161b22', cardBorder: '#21262d',
-  },
-  {
-    id: 'water', name: '水中',
-    sidebar: '#050f1e', content: '#071e38', bar: '#0ea5e9', card: 'rgba(8,40,72,.82)', cardBorder: 'rgba(14,165,233,.2)',
-  },
-  {
-    id: 'nature', name: '大自然',
-    sidebar: '#edf5ec', content: '#f0f4f0', bar: '#2d6a4f', card: '#ffffff', cardBorder: '#c8dfc8',
-  },
+  { id:'default', name:'デフォルト', bar:'#378ADD' },
+  { id:'cyber',   name:'サイバー',   bar:'#0284c7' },
+  { id:'math',    name:'数学',       bar:'#7c3aed' },
+  { id:'water',   name:'水中',       bar:'#0891b2' },
+  { id:'nature',  name:'大自然',     bar:'#16a34a' },
 ];
 
-let bubbleInterval = null;
+let bgRaf = null;
 
 function applyTheme(id) {
-  // 既存の泡を消す
-  clearInterval(bubbleInterval);
-  document.querySelectorAll('.bubble').forEach(b => b.remove());
-
+  stopBgAnimation();
   document.documentElement.setAttribute('data-theme', id === 'default' ? '' : id);
   const s = getSettings(); s.theme = id; setSettings(s);
-
-  if (id === 'water') spawnBubbles();
+  const canvas = document.getElementById('bgCanvas');
+  if (!canvas) return;
+  if (id === 'default') { canvas.style.display = 'none'; return; }
+  canvas.style.display = 'block';
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  if (id === 'cyber')  startCyberBg(canvas, ctx);
+  if (id === 'math')   startMathBg(canvas, ctx);
+  if (id === 'water')  startWaterBg(canvas, ctx);
+  if (id === 'nature') startNatureBg(canvas, ctx);
 }
 
-function spawnBubbles() {
-  const create = () => {
-    const b = document.createElement('div');
-    b.className = 'bubble';
-    const size = 8 + Math.random() * 24;
-    b.style.cssText = `width:${size}px;height:${size}px;left:${Math.random()*100}vw;bottom:-${size}px;animation-duration:${6+Math.random()*10}s;animation-delay:${Math.random()*4}s;`;
-    document.body.appendChild(b);
-    setTimeout(() => b.remove(), 18000);
-  };
-  for (let i = 0; i < 12; i++) setTimeout(create, i * 400);
-  bubbleInterval = setInterval(create, 1800);
+function stopBgAnimation() {
+  if (bgRaf) { cancelAnimationFrame(bgRaf); bgRaf = null; }
+  const canvas = document.getElementById('bgCanvas');
+  if (canvas) { const ctx = canvas.getContext('2d'); ctx.clearRect(0,0,canvas.width,canvas.height); }
+}
+
+// ── Cyber: ノード×移動グリッド ──────────────────────────────────────────────────
+function startCyberBg(cv, ctx) {
+  const nodes = Array.from({length:28}, () => ({
+    x: Math.random()*cv.width, y: Math.random()*cv.height,
+    vx:(Math.random()-.5)*.6, vy:(Math.random()-.5)*.6,
+    r:2+Math.random()*3, phase:Math.random()*Math.PI*2,
+  }));
+  let t = 0;
+  (function draw() {
+    t += .005;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    // 背景グラデ
+    const g = ctx.createLinearGradient(0,0,cv.width,cv.height);
+    g.addColorStop(0,'#eaf6ff'); g.addColorStop(1,'#d0ecfa');
+    ctx.fillStyle = g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 移動グリッド
+    const gs = 52, ox = (t*18)%gs;
+    ctx.strokeStyle='rgba(2,132,199,.07)'; ctx.lineWidth=1;
+    for(let x=ox-gs;x<cv.width+gs;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke();}
+    for(let y=ox-gs;y<cv.height+gs;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cv.width,y);ctx.stroke();}
+    // 接続線
+    for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+      const dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<160){ ctx.strokeStyle=`rgba(2,132,199,${(1-d/160)*.18})`; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y); ctx.stroke(); }
+    }
+    // ノード
+    nodes.forEach(n=>{
+      n.x+=n.vx; n.y+=n.vy; n.phase+=.025;
+      if(n.x<0||n.x>cv.width) n.vx*=-1;
+      if(n.y<0||n.y>cv.height) n.vy*=-1;
+      const a=.4+Math.sin(n.phase)*.2;
+      ctx.beginPath(); ctx.arc(n.x,n.y,n.r+Math.sin(n.phase)*1.5,0,Math.PI*2);
+      ctx.fillStyle=`rgba(2,132,199,${a})`; ctx.fill();
+    });
+    bgRaf = requestAnimationFrame(draw);
+  })();
+}
+
+// ── Math: 方眼紙 × 数式が漂う ───────────────────────────────────────────────────
+function startMathBg(cv, ctx) {
+  const syms = ['∑','∫','π','√','∞','σ','Δ','∇','α','β','γ','θ','λ','φ','ε','∂','⊕','∈','≠','≈','∝','⌀'];
+  const items = Array.from({length:30}, ()=>({
+    x:Math.random()*cv.width, y:Math.random()*cv.height,
+    sym:syms[Math.floor(Math.random()*syms.length)],
+    size:14+Math.random()*22, speed:.25+Math.random()*.5,
+    alpha:.06+Math.random()*.1, phase:Math.random()*Math.PI*2,
+  }));
+  (function draw() {
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.fillStyle='#fafaf8'; ctx.fillRect(0,0,cv.width,cv.height);
+    // 方眼紙 (大グリッド)
+    const gs=40;
+    ctx.strokeStyle='rgba(124,58,237,.06)'; ctx.lineWidth=1;
+    for(let x=0;x<cv.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke();}
+    for(let y=0;y<cv.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cv.width,y);ctx.stroke();}
+    // 小グリッド
+    ctx.strokeStyle='rgba(124,58,237,.025)'; ctx.lineWidth=.5;
+    const ss=8;
+    for(let x=0;x<cv.width;x+=ss){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke();}
+    for(let y=0;y<cv.height;y+=ss){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cv.width,y);ctx.stroke();}
+    // 数式
+    items.forEach(p=>{
+      p.y -= p.speed; p.phase+=.012;
+      if(p.y < -40){p.y=cv.height+40; p.x=Math.random()*cv.width;}
+      ctx.save();
+      ctx.font=`${p.size}px 'Georgia','Times New Roman',serif`;
+      ctx.fillStyle=`rgba(109,40,217,${p.alpha+Math.sin(p.phase)*.02})`;
+      ctx.fillText(p.sym, p.x+Math.sin(p.phase*.6)*12, p.y);
+      ctx.restore();
+    });
+    bgRaf = requestAnimationFrame(draw);
+  })();
+}
+
+// ── Water: 光芒 × 波紋 × 気泡 ───────────────────────────────────────────────────
+function startWaterBg(cv, ctx) {
+  let t=0;
+  const bubbles = Array.from({length:35}, ()=>({
+    x:Math.random()*cv.width, y:cv.height+Math.random()*cv.height,
+    r:3+Math.random()*14, speed:.5+Math.random()*1.8,
+    wobble:Math.random()*Math.PI*2, ws:.02+Math.random()*.03,
+  }));
+  (function draw() {
+    t+=.01;
+    ctx.clearRect(0,0,cv.width,cv.height);
+    // 背景グラデ (明るい水中)
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#cff3fb'); g.addColorStop(.5,'#daf5fc'); g.addColorStop(1,'#b8ecf7');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 光芒
+    ctx.save();
+    for(let i=0;i<7;i++){
+      const x=(cv.width/7)*i+Math.sin(t*.25+i)*40;
+      const rg=ctx.createLinearGradient(x,0,x+80,cv.height);
+      rg.addColorStop(0,'rgba(255,255,255,.22)'); rg.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=rg;
+      ctx.beginPath(); ctx.moveTo(x-25,0); ctx.lineTo(x+70,0); ctx.lineTo(x+240,cv.height); ctx.lineTo(x+130,cv.height); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    // 水面の波紋
+    ctx.strokeStyle='rgba(8,145,178,.1)'; ctx.lineWidth=1.5;
+    for(let i=0;i<4;i++){
+      const y=20+i*12+Math.sin(t+i*1.2)*6;
+      ctx.beginPath();
+      for(let x=0;x<cv.width;x+=3){ ctx.lineTo(x, y+Math.sin(x*.02+t+i)*.8*8); }
+      ctx.stroke();
+    }
+    // 気泡
+    bubbles.forEach(b=>{
+      b.y-=b.speed; b.wobble+=b.ws;
+      if(b.y<-b.r*2){b.y=cv.height+b.r; b.x=Math.random()*cv.width;}
+      const bx=b.x+Math.sin(b.wobble)*22;
+      ctx.beginPath(); ctx.arc(bx,b.y,b.r,0,Math.PI*2);
+      ctx.strokeStyle='rgba(8,145,178,.35)'; ctx.lineWidth=1.5; ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,.18)'; ctx.fill();
+      // ハイライト
+      ctx.beginPath(); ctx.arc(bx-b.r*.3, b.y-b.r*.3, b.r*.25, 0, Math.PI*2);
+      ctx.fillStyle='rgba(255,255,255,.6)'; ctx.fill();
+    });
+    bgRaf = requestAnimationFrame(draw);
+  })();
+}
+
+// ── Nature: 葉が舞い花粉が漂う ───────────────────────────────────────────────────
+function startNatureBg(cv, ctx) {
+  const leafColors=['#2d6a4f','#40916c','#52b788','#74c69d','#95d5b2','#1b4332','#388659'];
+  const leaves = Array.from({length:18}, ()=>({
+    x:Math.random()*cv.width, y:-50+Math.random()*cv.height,
+    r:9+Math.random()*14, speed:.6+Math.random()*1.2,
+    wobble:Math.random()*Math.PI*2, ws:.018+Math.random()*.025,
+    rot:Math.random()*Math.PI*2, rv:(Math.random()-.5)*.035,
+    color:leafColors[Math.floor(Math.random()*leafColors.length)],
+    alpha:.55+Math.random()*.35,
+  }));
+  const pollen = Array.from({length:55}, ()=>({
+    x:Math.random()*cv.width, y:Math.random()*cv.height,
+    r:.8+Math.random()*2.5, vx:(Math.random()-.5)*.25, vy:-(0.08+Math.random()*.25),
+    phase:Math.random()*Math.PI*2, alpha:.2+Math.random()*.35,
+  }));
+  (function draw() {
+    ctx.clearRect(0,0,cv.width,cv.height);
+    // 背景グラデ (光溢れる草原)
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#f0fbf4'); g.addColorStop(.6,'#e8f5e9'); g.addColorStop(1,'#d8f0dc');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 光の玉ボケ (後ろで)
+    ctx.save();
+    for(let i=0;i<6;i++){
+      const bx=cv.width*.1+i*(cv.width*.15), by=cv.height*.7+Math.sin(Date.now()*.0005+i)*30;
+      const rg=ctx.createRadialGradient(bx,by,0,bx,by,80+i*20);
+      rg.addColorStop(0,'rgba(255,255,220,.18)'); rg.addColorStop(1,'rgba(255,255,220,0)');
+      ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(bx,by,80+i*20,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+    // 花粉
+    pollen.forEach(p=>{
+      p.x+=p.vx+Math.sin(p.phase)*.15; p.y+=p.vy; p.phase+=.018;
+      if(p.y<-10){p.y=cv.height+10; p.x=Math.random()*cv.width;}
+      if(p.x<0||p.x>cv.width) p.vx*=-1;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(160,220,100,${p.alpha})`; ctx.fill();
+    });
+    // 葉
+    leaves.forEach(l=>{
+      l.y+=l.speed; l.x+=Math.sin(l.wobble)*.9; l.wobble+=l.ws; l.rot+=l.rv;
+      if(l.y>cv.height+60){l.y=-60; l.x=Math.random()*cv.width;}
+      ctx.save();
+      ctx.translate(l.x,l.y); ctx.rotate(l.rot);
+      ctx.globalAlpha=l.alpha;
+      ctx.beginPath(); ctx.ellipse(0,0,l.r,l.r*.48,0,0,Math.PI*2);
+      ctx.fillStyle=l.color; ctx.fill();
+      // 葉脈
+      ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.lineWidth=.8;
+      ctx.beginPath(); ctx.moveTo(-l.r,0); ctx.lineTo(l.r,0); ctx.stroke();
+      ctx.restore();
+    });
+    bgRaf = requestAnimationFrame(draw);
+  })();
 }
 
 function renderThemeGrid() {
   const el = document.getElementById('themeGrid');
   if (!el) return;
   const current = getSettings().theme || 'default';
+  const previews = {
+    default: `<div style="background:#f8fafc;flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;"><div style="height:5px;background:#378ADD;border-radius:2px;"></div><div style="flex:1;background:#fff;border:1px solid #E5E7EB;border-radius:3px;"></div><div style="flex:1;background:#fff;border:1px solid #E5E7EB;border-radius:3px;"></div></div>`,
+    cyber: `<div style="background:linear-gradient(135deg,#eaf6ff,#d0ecfa);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;"><div style="height:5px;background:#0284c7;border-radius:2px;box-shadow:0 0 6px #0284c7;"></div><div style="flex:1;background:rgba(255,255,255,.88);border:1px solid #bae6fd;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.88);border:1px solid #bae6fd;border-radius:3px;"></div></div>`,
+    math: `<div style="background:#fafaf8;flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;background-image:linear-gradient(rgba(124,58,237,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,.08) 1px,transparent 1px);background-size:10px 10px;"><div style="height:5px;background:#7c3aed;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c4b5fd;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c4b5fd;border-radius:3px;"></div></div>`,
+    water: `<div style="background:linear-gradient(160deg,#cff3fb,#b8ecf7);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;"><div style="height:5px;background:#0891b2;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #a5f3fc;border-radius:3px;backdrop-filter:blur(4px);"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #a5f3fc;border-radius:3px;backdrop-filter:blur(4px);"></div></div>`,
+    nature: `<div style="background:linear-gradient(160deg,#f0fbf4,#d8f0dc);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;"><div style="height:5px;background:#16a34a;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #bbf7d0;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #bbf7d0;border-radius:3px;"></div></div>`,
+  };
   el.innerHTML = THEMES.map(t => `
-    <div class="theme-card ${current === t.id ? 'selected' : ''}" onclick="applyTheme('${t.id}');renderThemeGrid();">
+    <div class="theme-card ${current===t.id?'selected':''}" onclick="applyTheme('${t.id}');renderThemeGrid();" style="border-color:${current===t.id?t.bar:'#E5E7EB'};">
       <div class="theme-preview">
-        <div class="theme-preview-sidebar" style="background:${t.sidebar};border-right:1px solid ${t.cardBorder};"></div>
-        <div class="theme-preview-content" style="background:${t.content};">
-          <div class="theme-preview-bar" style="background:${t.bar};"></div>
-          <div class="theme-preview-card" style="background:${t.card};border-color:${t.cardBorder};"></div>
-          <div class="theme-preview-card" style="background:${t.card};border-color:${t.cardBorder};"></div>
-        </div>
+        <div class="theme-preview-sidebar" style="background:#fff;border-right:1px solid #E5E7EB;width:28%;"></div>
+        ${previews[t.id]}
       </div>
-      <div class="theme-label">${t.name}</div>
+      <div class="theme-label" style="color:#374151;">${t.name}</div>
     </div>`).join('');
 }
 
@@ -2056,11 +2135,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
   calYear = now.getFullYear(); calMonth = now.getMonth();
   // 保存済みテーマを復元
-  const savedTheme = getSettings().theme || 'default';
-  applyTheme(savedTheme);
+  applyTheme(getSettings().theme || 'default');
   renderDashboard();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
+  });
+  // ウィンドウリサイズでcanvasをリサイズ&再描画
+  window.addEventListener('resize', () => {
+    const cv = document.getElementById('bgCanvas');
+    if (cv && cv.style.display !== 'none') {
+      cv.width = window.innerWidth; cv.height = window.innerHeight;
+      applyTheme(getSettings().theme || 'default');
+    }
   });
   // 日付フィールドはボックスクリックでカレンダーを開く
   document.addEventListener('click', e => {
