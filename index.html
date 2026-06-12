@@ -1715,18 +1715,52 @@ function botNorm(text) {
 }
 
 function botExtractDate(text) {
-  const today = new Date();
+  const today = new Date(); today.setHours(0,0,0,0);
   if (/今日/.test(text)) return todayStr();
   if (/明後日|あさって/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+2); return d.toISOString().split('T')[0]; }
-  if (/明日/.test(text))           { const d=new Date(today); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; }
-  if (/来週/.test(text))           { const d=new Date(today); d.setDate(d.getDate()+7); return d.toISOString().split('T')[0]; }
+  if (/明日/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; }
   if (/今週末|今週の?土曜/.test(text)) {
     const d=new Date(today); d.setDate(d.getDate()+(6-d.getDay()||7)); return d.toISOString().split('T')[0];
   }
+  // 曜日パターン（来週月曜、金曜など）
+  const DAYS = {'日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6};
+  const wm = text.match(/(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?/);
+  if (wm) {
+    const targetDow = DAYS[wm[2]];
+    const todayDow = today.getDay();
+    let diff;
+    if (/来週|次/.test(wm[1] || '')) {
+      // 次の週の月曜を起点に計算
+      const toMon = ((1 - todayDow) + 7) % 7 || 7;
+      diff = toMon + (targetDow - 1 + 7) % 7;
+    } else {
+      diff = targetDow - todayDow;
+      if (diff <= 0) diff += 7;
+    }
+    const d = new Date(today); d.setDate(d.getDate() + diff);
+    return d.toISOString().split('T')[0];
+  }
+  // 来週（曜日なし）→ +7日
+  if (/来週/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+7); return d.toISOString().split('T')[0]; }
   const m1 = text.match(/(\d{1,2})月(\d{1,2})日/);
   if (m1) { const d=new Date(today.getFullYear(),parseInt(m1[1])-1,parseInt(m1[2])); return d.toISOString().split('T')[0]; }
   const m2 = text.match(/(\d{1,2})\/(\d{1,2})/);
   if (m2) { const d=new Date(today.getFullYear(),parseInt(m2[1])-1,parseInt(m2[2])); return d.toISOString().split('T')[0]; }
+  return null;
+}
+
+// 時刻抽出（時限・午前午後・時刻）
+function botExtractTime(text) {
+  const periods = ['','09:00','10:40','12:20','14:00','15:40','17:20'];
+  const lm = text.match(/(\d)(限|時限)/);
+  if (lm) { const p = parseInt(lm[1]); return periods[p] || '09:00'; }
+  const tm = text.match(/(\d{1,2})時((\d{2})分)?/);
+  if (tm) return `${tm[1].padStart(2,'0')}:${(tm[3]||'00').padStart(2,'0')}`;
+  if (/朝|午前/.test(text)) return '09:00';
+  if (/昼/.test(text))      return '12:00';
+  if (/午後/.test(text))    return '13:00';
+  if (/夕方/.test(text))    return '17:00';
+  if (/夜/.test(text))      return '19:00';
   return null;
 }
 
@@ -1735,11 +1769,12 @@ function botExtractTaskName(text) {
   return text
     .replace(/(を|が|は|の)?(タスク|課題|仕事|やつ|もの|やること)(を|が|は|の)?/g, ' ')
     .replace(/(今日|明日|明後日|来週|今週末).{0,4}(まで|期限|締め切り)(に|で)?/g, ' ')
-    .replace(/\d{1,2}月\d{1,2}日.{0,4}(まで|期限|締め切り)(に|で)?/g, ' ')
-    .replace(/\d{1,2}\/\d{1,2}.{0,4}(まで|期限|締め切り)(に|で)?/g, ' ')
+    .replace(/(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?(.{0,4}(まで|期限))?/g, ' ')
+    .replace(/\d{1,2}月\d{1,2}日.{0,4}(まで|期限|締め切り)?(に|で)?/g, ' ')
+    .replace(/\d{1,2}\/\d{1,2}.{0,4}(まで|期限|締め切り)?(に|で)?/g, ' ')
     .replace(/(追加|作成|作|登録|入力|入れ|新規)(して|する|しといて|ください|お願い|します)?/g, ' ')
-    .replace(/(を|に|が|は|で|から|まで)/g, ' ')
-    .replace(/\s{2,}/g, ' ')
+    .replace(/(を|に|が|は|で|から|まで|ね|よ|だよ)/g, ' ')
+    .replace(/[、,，。\s]+/g, ' ')
     .trim();
 }
 
@@ -1751,7 +1786,6 @@ function botFindTask(keyword, candidates) {
   if (match) return match;
   match = candidates.find(t => t.name.includes(kw) || kw.includes(t.name));
   if (match) return match;
-  // 単語単位で部分一致
   const words = kw.split(/[\s　]/);
   return candidates.find(t =>
     words.some(w => w.length >= 2 && (t.name.includes(w) || w.includes(t.name)))
@@ -1774,37 +1808,64 @@ function botProcess(text) {
     return { text:
       '📖 できることの一覧:\n\n' +
       '📋 タスク\n' +
-      '「タスク一覧を見せて」\n' +
-      '「レポートのタスクを明日期限で追加して」\n' +
-      '「レポートを完了にして」\n' +
+      '「タスク一覧を見せて」「未完了のやつ見せて」\n' +
+      '「レポートやらないと」「数学の課題忘れないようにして」\n' +
+      '「英語のプレゼン、来週月曜ね」\n' +
+      '「レポートを完了にして」「レポ終わり」「数学おわ」\n' +
+      '「〇〇クリア」「〇〇片付いた」「〇〇やっつけた」\n' +
+      '「レポートの期限を金曜に変えて」\n' +
+      '「レポートの名前を微積レポートに直して」\n' +
       '「レポートを削除して」\n\n' +
       '✅ TODO\n' +
-      '「今日のTODOを教えて」\n' +
-      '「数学の勉強をTODOに追加して」\n' +
-      '「数学をTODO完了にして」\n\n' +
+      '「今日のTODOを教えて」「数学をTODO追加して」\n\n' +
       '📊 確認\n' +
-      '「今週の進捗を教えて」\n' +
-      '「期限が近いタスクは？」\n' +
-      '「今日のスケジュールを見せて」\n\n' +
+      '「今日やること全部教えて」「今週何がある？」\n' +
+      '「明日の予定は？」「あと何個残ってる？」\n' +
+      '「〇〇ってまだタスクに入れてた？」\n' +
+      '「〇〇のタスクどうなってる？」\n' +
+      '「今週の進捗を教えて」「期限が近いタスクは？」\n\n' +
       '📅 スケジュール\n' +
-      '「10時から数学の勉強をスケジュールに追加して」'
+      '「今日の3限にゼミ入れて」「土曜の午後にバイト」\n' +
+      '「10時から数学をスケジュールに追加して」\n' +
+      '「〇〇の予定キャンセルして」'
     };
   }
 
-  // ── 完了にする (タスク) ───────────────────────────────────────────────────────
-  if (/(完了|終わ(った|らせ|らした)|できた|済(ませ|んだ)|仕上げた|done)/.test(n) &&
-      !/(todo|やること)/.test(n) &&
-      /(タスク|task)/.test(n) || (/(完了|終わ(った|らせ)|できた|済(ませ|んだ))/.test(n) && /(タスク)/.test(n))) {
-    return botCompleteTask(text, n);
+  // ── 今日やること全部（複合） ─────────────────────────────────────────────────
+  if (/(今日.*(やること|全部|全て|まとめ|一覧|何が)|全部.*今日)/.test(n)) {
+    return botTodayAll();
   }
-  // 「〇〇終わった」のような短縮形（タスク・todo不問）
-  if (/^.{1,25}(完了|終わ(った|らせた)|できた|済んだ)$/.test(n) &&
-      !/(todo|やること|追加|一覧|見せ|教え|スケジュール)/.test(n)) {
+
+  // ── 残り何個？ ───────────────────────────────────────────────────────────────
+  if (/(あと何|残り.*(いくつ|何個|何件)|何個.*(残|ある)|いくつ.*(残|ある))/.test(n)) {
+    return botCountRemaining();
+  }
+
+  // ── タスク存在確認 ─────────────────────────────────────────────────────────
+  if (/(って|は)?.*(まだ)?(タスク|task)(に|を|が|は)?.*(入れ(てた|ってた|てる|ある)?|ある|登録|残って)/.test(n) ||
+      /(タスク|task).*(ある|あった|入ってる|登録)(か|かな)?$/.test(n)) {
+    return botCheckTask(text, n);
+  }
+
+  // ── タスク更新 ─────────────────────────────────────────────────────────────
+  if (/(期限|締め切り|締切).*(変え|直し|更新|延期|ずらし|繰り上げ)/.test(n) ||
+      /(名前|タイトル).*(変え|直し|更新|変更|改名)/.test(n) ||
+      /(変え|直し|改名).*(名前|タイトル)/.test(n) ||
+      /(進行中|着手|開始|やり始め|スタート)(に?して|する)?$/.test(n) ||
+      /(優先度|プライオリティ).*(上げ|高め)/.test(n)) {
+    return botUpdateTask(text, n);
+  }
+
+  // ── タスク完了（口語・略語を含む） ──────────────────────────────────────────
+  if ((/(完了|終わ(った|らせ|らした)|できた|済(ませ|んだ)|仕上げた|done|クリア|片付いた|やっつけた)/.test(n) ||
+       /^.{1,20}(おわ|終わり|おわり)$/.test(n) ||
+       /消していい/.test(n)) &&
+      !/(todo|やること|一覧|見せ|教え|追加|スケジュール|予定)/.test(n)) {
     return botCompleteTask(text, n);
   }
 
   // ── TODO完了 ─────────────────────────────────────────────────────────────────
-  if (/(todo|やること).*(完了|終わ|できた|済ませ)|(完了|終わ|できた|済ませ).*(todo|やること)/.test(n)) {
+  if (/(todo|やること).*(完了|終わ|できた|済ませ|クリア)|(完了|終わ|できた|済ませ|クリア).*(todo|やること)/.test(n)) {
     return botCompleteTodo(text, n);
   }
 
@@ -1813,10 +1874,31 @@ function botProcess(text) {
     return botDeleteTask(text, n);
   }
 
-  // ── タスク追加 ───────────────────────────────────────────────────────────────
+  // ── スケジュール削除・キャンセル ─────────────────────────────────────────────
+  if ((/(スケジュール|予定).*(削除|消|キャンセル|cancel|なくして)/.test(n) ||
+       /(削除|消|キャンセル|cancel|なくして).*(スケジュール|予定)/.test(n) ||
+       /(予定|スケジュール).*(キャンセル|なし|取り消し)/.test(n))) {
+    return botDeleteSchedule(text, n);
+  }
+
+  // ── 口語タスク追加（やらないと・忘れないように・入れといて） ────────────────
+  if (/(やらないと|やんないと|やらなきゃ|やらねば|しないと|しなきゃ|しなければ)/.test(n) ||
+      /(忘れない(ように|ようにして|でね)|メモ(っといて|しといて|して|っとく))/.test(n) ||
+      (/(入れといて|突っ込んで|ぶち込んで|追加しといて)/.test(n) && !/(一覧|見せ|教え)/.test(n))) {
+    return botAddTaskColloquial(text, n);
+  }
+
+  // ── 「〇〇ね」期限付きタスク追加（期限だけ言うパターン） ────────────────────
+  if (/(ね|よ|だよ|でしょ)$/.test(n) && botExtractDate(text) &&
+      !/(タスク|todo|スケジュール|予定|追加|一覧|削除|変え|直し)/.test(n)) {
+    return botAddTaskFromDeadline(text, n);
+  }
+
+  // ── 「〇〇もタスクに入れといて」通常パターン ─────────────────────────────────
   if ((/(タスク|課題|仕事).*(追加|作|登録|入れ|作成|新規)/.test(n) ||
-       /(追加|作|登録|入れ|作成).*(タスク|課題|仕事)/.test(n)) &&
-      !/(一覧|見せ|教え|確認|ある|は？)/.test(n)) {
+       /(追加|作|登録|入れ|作成).*(タスク|課題|仕事)/.test(n) ||
+       /(も|を)?(タスク|リスト|todo)に(入れ|追加|登録)(といて|して|お願い)?/.test(n)) &&
+      !/(一覧|見せ|教え|確認|ある|は？|どうなってる|状態)/.test(n)) {
     return botAddTask(text, n);
   }
 
@@ -1827,17 +1909,36 @@ function botProcess(text) {
     return botAddTodo(text, n);
   }
 
-  // ── スケジュール追加 ─────────────────────────────────────────────────────────
+  // ── スケジュール追加（時限・午前午後も含む） ─────────────────────────────────
   if ((/(スケジュール|予定).*(追加|入れ|作|登録)/.test(n) ||
        /(追加|入れ|作|登録).*(スケジュール|予定)/.test(n) ||
-       /\d{1,2}時(間|.*から)/.test(n)) &&
-      !/(一覧|見せ|教え|確認)/.test(n)) {
+       /\d(限|時限)/.test(n) ||
+       /\d{1,2}時(間|.*から)/.test(n) ||
+       /(午前|午後|朝|昼|夜|夕方).*(に|から)/.test(n)) &&
+      !/(一覧|見せ|教え|確認|ある|は？|変え|直し|キャンセル|削除)/.test(n)) {
     return botAddSchedule(text, n);
   }
 
-  // ── タスク一覧 ───────────────────────────────────────────────────────────────
+  // ── 特定タスクの状態確認 ─────────────────────────────────────────────────────
+  if (/(どうなってる|状態|ステータス).*(タスク|task)?/.test(n) ||
+      /(タスク|task).*(どうなってる|状態|ステータス)/.test(n)) {
+    return botCheckTaskStatus(text, n);
+  }
+
+  // ── 今週の確認 ───────────────────────────────────────────────────────────────
+  if (/(今週|今週中|この週).*(何|ある|タスク|予定)/.test(n)) {
+    return botListThisWeek();
+  }
+
+  // ── 明日の予定 ───────────────────────────────────────────────────────────────
+  if (/明日.*(予定|スケジュール|タスク|何|ある)/.test(n)) {
+    return botListTomorrow();
+  }
+
+  // ── タスク一覧（未完了のやつ含む） ──────────────────────────────────────────
   if (/(タスク|task).*(一覧|リスト|見せ|教え|確認|ある|は|何)/.test(n) ||
       /(一覧|見せ|教え|確認).*(タスク|task)/.test(n) ||
+      /(未完了|残り).*(やつ|もの|タスク|task)/.test(n) ||
       n === 'タスク' || n === 'タスク一覧') {
     return botListTasks(n);
   }
@@ -1856,13 +1957,13 @@ function botProcess(text) {
   }
 
   // ── 進捗 ─────────────────────────────────────────────────────────────────────
-  if (/(進捗|達成率|完了率|今週|どのくらい完了|どれだけ|成果|実績|状況|サマリ)/.test(n)) {
+  if (/(進捗|達成率|完了率|どのくらい完了|どれだけ|成果|実績|状況|サマリ)/.test(n)) {
     return botProgress();
   }
 
   // ── 期限確認 ─────────────────────────────────────────────────────────────────
   if (/(期限|締め切り|締切|デッドライン|急ぎ|緊急|期日|近い|迫って|やばい)/.test(n) &&
-      !/(追加|入れ|作|登録)/.test(n)) {
+      !/(追加|入れ|作|登録|変え|直し)/.test(n)) {
     return botDeadlines();
   }
 
@@ -1902,8 +2003,95 @@ function botListTodos() {
 function botListSchedule() {
   const tStr = todayStr();
   const evs = getSched().filter(e => e.date === tStr).sort((a,b)=>a.startTime.localeCompare(b.startTime));
-  if (evs.length === 0) return { text: '今日のスケジュールはありません。\n「10時から〇〇をスケジュールに追加して」で追加できます。' };
+  if (evs.length === 0) return { text: '今日のスケジュールはありません。\n「3限にゼミを追加して」「午後にバイト」のように話しかけてください。' };
   return { text: `今日のスケジュール（${evs.length}件）:\n\n` + evs.map(e => `⏰ ${e.startTime} ${e.title}（${e.duration}分）`).join('\n') };
+}
+
+function botListTomorrow() {
+  const d = new Date(); d.setDate(d.getDate()+1);
+  const tStr = d.toISOString().split('T')[0];
+  const tasks = getTasks().filter(t => t.deadline === tStr && t.status !== 'done');
+  const evs = getSched().filter(e => e.date === tStr).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+  let text = `📅 明日（${tStr}）の予定:\n\n`;
+  let has = false;
+  if (evs.length > 0) { text += '⏰ スケジュール:\n' + evs.map(e=>`  ${e.startTime} ${e.title}（${e.duration}分）`).join('\n') + '\n\n'; has = true; }
+  if (tasks.length > 0) { text += '📌 明日期限のタスク:\n' + tasks.map(t=>`  ・${t.name}`).join('\n'); has = true; }
+  if (!has) text += '明日の予定・期限タスクはありません。';
+  return { text };
+}
+
+function botListThisWeek() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const tStr = todayStr();
+  const endOfWeek = new Date(today); endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
+  const endStr = endOfWeek.toISOString().split('T')[0];
+  const tasks = getTasks()
+    .filter(t => t.deadline && t.deadline >= tStr && t.deadline <= endStr && t.status !== 'done')
+    .sort((a,b) => a.deadline.localeCompare(b.deadline));
+  if (tasks.length === 0) return { text: '今週期限のタスクはありません。' };
+  const DAYS = ['日','月','火','水','木','金','土'];
+  const lines = tasks.map(t => {
+    const diff = Math.ceil((new Date(t.deadline) - today) / 86400000);
+    const dow = DAYS[new Date(t.deadline).getDay()];
+    const label = diff===0?'今日':diff===1?'明日':`${dow}曜(${t.deadline})`;
+    return `  📌 ${label}まで: ${t.name}`;
+  });
+  return { text: `今週の期限タスク（${tasks.length}件）:\n\n${lines.join('\n')}` };
+}
+
+function botTodayAll() {
+  const tStr = todayStr();
+  const evs = getSched().filter(e => e.date === tStr).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+  const todos = getTodos().filter(t => t.date === tStr && !t.done);
+  const tasks = getTasks().filter(t => t.status !== 'done' && t.deadline && t.deadline <= tStr);
+  let text = '📋 今日やること:\n\n';
+  let has = false;
+  if (evs.length > 0) { text += '⏰ スケジュール:\n' + evs.map(e=>`  ${e.startTime} ${e.title}`).join('\n') + '\n\n'; has = true; }
+  if (todos.length > 0) { text += '✅ TODO:\n' + todos.map((t,i)=>`  ${i+1}. ${t.text}`).join('\n') + '\n\n'; has = true; }
+  if (tasks.length > 0) { text += '📌 今日期限のタスク:\n' + tasks.slice(0,8).map(t=>`  ・${t.name}`).join('\n'); has = true; }
+  if (!has) text = '今日の予定・タスク・TODOはありません。ゆっくり休みましょう 😊';
+  return { text };
+}
+
+function botCountRemaining() {
+  const tasks = getTasks();
+  const remaining = tasks.filter(t => t.status !== 'done');
+  const overdue = remaining.filter(t => t.deadline && t.deadline < todayStr());
+  const todayDue = remaining.filter(t => t.deadline === todayStr());
+  let text = `📊 残りタスク: ${remaining.length}件\n`;
+  if (overdue.length > 0) text += `⚠️ 期限超過: ${overdue.length}件\n`;
+  if (todayDue.length > 0) text += `📌 今日まで: ${todayDue.length}件\n`;
+  text += `\n「タスク一覧を見せて」で詳細を確認できます。`;
+  return { text };
+}
+
+function botCheckTask(original, n) {
+  const cleaned = original
+    .replace(/(って|は|が)?(まだ)?(タスク|task)(に|を|が|は)?(入れ(てた|ってた|てる|ある)?|ある|残って|登録)(か|かな|？|ある|ない)?(の|ん)?(だ|で)?/g, '')
+    .replace(/(タスク|task).*(ある|あった|入ってる|登録)(か|かな|？)?$/g, '')
+    .replace(/(って|は|が|の|を|、|,|\s)+/g, ' ')
+    .replace(/^[\s　]+|[\s　]+$/g, '')
+    .trim();
+  if (!cleaned || cleaned.length < 2) return botListTasks('');
+  const match = botFindTask(cleaned, getTasks());
+  if (match) {
+    const statusMap = { todo:'未着手', progress:'進行中 🔄', done:'完了済み ✅' };
+    let text = `「${match.name}」はタスクにあります。\nステータス: ${statusMap[match.status]||match.status}`;
+    if (match.deadline) text += `\n期限: ${match.deadline}`;
+    if (match.progress > 0 && match.status !== 'done') text += `\n進捗: ${match.progress}%`;
+    return { text };
+  }
+  return { text: `「${cleaned}」というタスクは見つかりませんでした。\n「タスク一覧を見せて」で一覧を確認できます。` };
+}
+
+function botCheckTaskStatus(original, n) {
+  const cleaned = original
+    .replace(/(タスク|task)?(の)?(どうなってる|状態|ステータス|進捗|どう)(か|かな|は|？)?$/g, '')
+    .replace(/(の|を|が|は|って|、|,|\s)+/g, ' ')
+    .replace(/^[\s　]+|[\s　]+$/g, '')
+    .trim();
+  if (!cleaned || cleaned.length < 2) return botListTasks('');
+  return botCheckTask(cleaned, botNorm(cleaned));
 }
 
 function botProgress() {
@@ -1936,12 +2124,13 @@ function botDeadlines() {
 
 function botCompleteTask(original, n) {
   const cleaned = original
-    .replace(/(を|が|は)?(完了|終わ(った|らせた?|らした?)|できた|済(ませた?|んだ)|仕上げた|done)(にして|した?|です|ました)?/g, '')
+    .replace(/(を|が|は)?(完了|終わ(った|らせた?|らした?)|できた|済(ませた?|んだ)|仕上げた|done|クリア|片付いた|やっつけた|消していい)(にして|した?|です|ました)?/g, '')
+    .replace(/^.{1,20}(おわ|終わり|おわり)$/, s => s.replace(/(おわ|終わり|おわり)$/, ''))
     .replace(/(タスク|task)/g, '')
     .replace(/(して|ください|お願い)(します)?$/g, '')
     .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
     .trim();
-  if (!cleaned) return { text: '完了にするタスクを教えてください。\n例：「レポートを完了にして」' };
+  if (!cleaned) return { text: '完了にするタスクを教えてください。\n例：「レポートを完了にして」「数学おわ」' };
   const candidates = getTasks().filter(t => t.status !== 'done');
   const match = botFindTask(cleaned, candidates);
   if (!match) return { text: `「${cleaned}」というタスクが見つかりませんでした。\n「タスク一覧を見せて」で名前を確認してみてください。` };
@@ -1952,7 +2141,7 @@ function botCompleteTask(original, n) {
 
 function botCompleteTodo(original, n) {
   const cleaned = original
-    .replace(/(todo|やること|を|が|は)?(完了|終わ(った|らせた?)|できた|済(ませた?|んだ))(にして|した?|です)?/gi, '')
+    .replace(/(todo|やること|を|が|は)?(完了|終わ(った|らせた?)|できた|済(ませた?|んだ)|クリア)(にして|した?|です)?/gi, '')
     .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
     .trim();
   if (!cleaned) return { text: '完了にするTODOを教えてください。\n例：「数学をTODO完了にして」' };
@@ -1978,11 +2167,26 @@ function botDeleteTask(original, n) {
   return { text: `🗑️ 「${match.name}」を削除しました。` };
 }
 
+function botDeleteSchedule(original, n) {
+  const title = original
+    .replace(/(を|が|は)?(スケジュール|予定)?(を|が|は)?(削除|消(して|す)|キャンセル|cancel|なくして|取り消し)(して|ください|お願い)?/g, '')
+    .replace(/(スケジュール|予定)/g, '')
+    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .trim();
+  const tStr = todayStr();
+  const evs = getSched().filter(e => e.date >= tStr);
+  const match = evs.find(e => e.title.includes(title) || title.includes(e.title)) ||
+                evs.find(e => title.split(/\s/).some(w => w.length >= 2 && e.title.includes(w)));
+  if (!match) return { text: `「${title}」という予定が見つかりませんでした。\n「スケジュール一覧を見せて」で確認できます。` };
+  setSched(getSched().filter(e => e.id !== match.id));
+  renderPage(currentPage);
+  return { text: `🗑️ 「${match.title}」（${match.date} ${match.startTime}〜）の予定を削除しました。` };
+}
+
 function botAddTask(original, n) {
   const deadline = botExtractDate(original);
   let name = botExtractTaskName(original);
   if (!name || name.length < 2) return { text: 'タスク名を教えてください。\n例：「レポートのタスクを明日期限で追加して」' };
-  // グループ自動マッチ
   const groups = getGroups();
   const group = groups.find(g => name.includes(g.name))?.id || '';
   const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
@@ -1991,6 +2195,48 @@ function botAddTask(original, n) {
   let resp = `📋 タスク「${name}」を追加しました！`;
   if (deadline) resp += `\n📅 期限: ${deadline}`;
   if (group) resp += `\n📁 グループ: ${groups.find(g=>g.id===group)?.name}`;
+  return { text: resp };
+}
+
+function botAddTaskColloquial(original, n) {
+  const deadline = botExtractDate(original);
+  let name = '';
+  const m1 = original.match(/^(.+?)(を|が)?(やらないと|やんないと|やらなきゃ|やらねば|しないと|しなきゃ|しなければ)/);
+  const m2 = original.match(/^(.+?)(を|が|は)?(忘れないように|忘れないで|忘れないようにして|メモって|メモしといて|メモっといて|メモっとく)/);
+  const m3 = original.match(/^(.+?)(を|も)?(タスクに|に)?(入れといて|突っ込んで|ぶち込んで|追加しといて)/);
+  if (m1) name = m1[1].replace(/(の|を|が|は|、|,)+$/, '').trim();
+  else if (m2) name = m2[1].replace(/(の|を|が|は|、|,)+$/, '').trim();
+  else if (m3) name = m3[1].replace(/(の|も|を|が|は|、|,)+$/, '').trim();
+  if (!name || name.length < 2) return { text: 'タスク名を教えてください。\n例：「レポートやらないと」「数学の課題忘れないようにして」' };
+  name = name.replace(/^(今日|明日|来週).{0,3}(まで|期限)?/, '').trim();
+  const groups = getGroups();
+  const group = groups.find(g => name.includes(g.name))?.id || '';
+  const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
+  setTasks([...getTasks(), task]);
+  renderPage(currentPage);
+  let resp = `📋 「${name}」をタスクに追加しました！`;
+  if (deadline) resp += `\n📅 期限: ${deadline}`;
+  return { text: resp };
+}
+
+function botAddTaskFromDeadline(original, n) {
+  const deadline = botExtractDate(original);
+  const DAYS_RE = /(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?/g;
+  let name = original
+    .replace(DAYS_RE, '')
+    .replace(/\d{1,2}月\d{1,2}日/, '')
+    .replace(/(今日|明日|明後日|来週)/, '')
+    .replace(/(ね|よ|だよ|でしょ|じゃん|まで|期限|締め切り)$/, '')
+    .replace(/[、,，。\s]+$/, '').replace(/^[、,，。\s]+/, '')
+    .trim();
+  if (!name || name.length < 2) return { text: 'タスク名を教えてください。\n例：「英語のプレゼン、来週月曜ね」' };
+  const groups = getGroups();
+  const group = groups.find(g => name.includes(g.name))?.id || '';
+  const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
+  setTasks([...getTasks(), task]);
+  renderPage(currentPage);
+  let resp = `📋 「${name}」をタスクに追加しました！`;
+  if (deadline) resp += `\n📅 期限: ${deadline}`;
   return { text: resp };
 }
 
@@ -2008,31 +2254,88 @@ function botAddTodo(original, n) {
 }
 
 function botAddSchedule(original, n) {
-  const timeMatch = original.match(/(\d{1,2})時((\d{2})分)?/);
-  const startTime = timeMatch ? `${timeMatch[1].padStart(2,'0')}:${(timeMatch[3]||'00').padStart(2,'0')}` : '09:00';
+  const startTime = botExtractTime(original) || '09:00';
   const durMatch = original.match(/(\d+)(時間|分)/);
   const duration = durMatch ? (durMatch[2]==='時間' ? parseInt(durMatch[1])*60 : parseInt(durMatch[1])) : 60;
   const dateForSched = botExtractDate(original) || todayStr();
   let title = original
     .replace(/(を|に|の)?(スケジュール|予定)(を|に|の)?(追加|入れ|作|登録)(して|する|ください)?/g, '')
+    .replace(/\d(限|時限)/g, '')
     .replace(/(\d{1,2})時((\d{2})分)?から?/g, '')
     .replace(/(\d+)(時間|分)/g, '')
-    .replace(/(今日|明日|明後日|来週).{0,3}(まで|から)?/g, '')
+    .replace(/(今日|明日|明後日|来週).{0,3}(まで|から|の)?/g, '')
+    .replace(/(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?の?/g, '')
+    .replace(/\d{1,2}月\d{1,2}日の?/g, '')
+    .replace(/(午前|午後|朝|昼|夜|夕方)(に|から|は)?/g, '')
     .replace(/(追加|入れ)(して|する|ください)?/g, '')
-    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .replace(/^(の|を|が|は|に|\s)+|(\s|の|を|が|は|に)+$/g, '')
     .trim();
-  if (!title || title.length < 2) return { text: 'スケジュールのタイトルを教えてください。\n例：「10時から数学の勉強をスケジュールに追加して」' };
+  if (!title || title.length < 2) return { text: 'スケジュールのタイトルを教えてください。\n例：「3限にゼミ入れて」「土曜の午後にバイト」' };
   setSched([...getSched(), { id:uid(), title, startTime, duration, date:dateForSched }]);
   renderPage(currentPage);
   return { text: `📅 「${title}」を${dateForSched} ${startTime}〜 (${duration}分) でスケジュールに追加しました！` };
 }
 
+function botUpdateTask(original, n) {
+  if (/(名前|タイトル).*(変え|直し|更新|変更|改名)/.test(n) ||
+      /(変え|直し|改名).*(名前|タイトル)/.test(n)) {
+    return botRenameTask(original, n);
+  }
+  if (/(期限|締め切り|締切).*(変え|直し|更新|延期|ずらし|繰り上げ)/.test(n)) {
+    return botUpdateDeadline(original, n);
+  }
+  if (/(優先度|プライオリティ).*(上げ|高め)/.test(n) ||
+      /(進行中|着手|開始|やり始め|スタート)(に?して|する)?/.test(n)) {
+    return botUpdateStatus(original, n);
+  }
+  return botFallback(n);
+}
+
+function botUpdateDeadline(original, n) {
+  const newDate = botExtractDate(original);
+  if (!newDate) return { text: '新しい期限を教えてください。\n例：「レポートの期限を来週金曜に変えて」' };
+  const taskPart = original.split(/(の?(期限|締め切り|締切))/)[0];
+  const taskName = taskPart.replace(/(の|を|が|は|、|,|\s)+$/, '').trim();
+  const match = botFindTask(taskName, getTasks().filter(t => t.status !== 'done'));
+  if (!match) return { text: `「${taskName}」というタスクが見つかりませんでした。` };
+  setTasks(getTasks().map(t => t.id===match.id ? {...t, deadline:newDate} : t));
+  renderPage(currentPage);
+  return { text: `📅 「${match.name}」の期限を ${newDate} に変更しました！` };
+}
+
+function botRenameTask(original, n) {
+  const m = original.match(/(.+?)の?(名前|タイトル)を(.+?)に(変え|直し|更新|改名)/);
+  if (!m) return { text: '変更前と変更後の名前を教えてください。\n例：「数学の課題の名前を微積レポートに直して」' };
+  const oldName = m[1].replace(/(の|を|が|は|、|,|\s)+$/, '').trim();
+  const newName = m[3].replace(/(の|を|が|は|、|,|\s)+$/, '').trim();
+  const match = botFindTask(oldName, getTasks());
+  if (!match) return { text: `「${oldName}」というタスクが見つかりませんでした。` };
+  setTasks(getTasks().map(t => t.id===match.id ? {...t, name:newName} : t));
+  renderPage(currentPage);
+  return { text: `✏️ 「${match.name}」を「${newName}」に名前変更しました！` };
+}
+
+function botUpdateStatus(original, n) {
+  const cleaned = original
+    .replace(/(を|が|は)?(進行中|着手|開始|やり始め|スタート)(にして|する|します|した?)?/g, '')
+    .replace(/(を|が|は)?(優先度|プライオリティ)(を|が|は)?(上げ|高め)(て|る|ください)?/g, '')
+    .replace(/(タスク|task)/g, '')
+    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .trim();
+  if (!cleaned) return { text: 'どのタスクを変更しますか？' };
+  const match = botFindTask(cleaned, getTasks().filter(t => t.status !== 'done'));
+  if (!match) return { text: `「${cleaned}」というタスクが見つかりませんでした。` };
+  setTasks(getTasks().map(t => t.id===match.id ? {...t, status:'progress'} : t));
+  renderPage(currentPage);
+  return { text: `🔄 「${match.name}」を進行中に変更しました！` };
+}
+
 function botFallback(n) {
   const hints = [];
-  if (/(タスク|task|課題|仕事)/.test(n)) hints.push('「タスク一覧を見せて」「〇〇のタスクを追加して」「〇〇を完了にして」');
+  if (/(タスク|task|課題|仕事)/.test(n)) hints.push('「タスク一覧を見せて」「〇〇やらないと」「〇〇おわ」「〇〇の期限を金曜に変えて」');
   if (/(todo|やること)/.test(n))          hints.push('「今日のTODOを教えて」「〇〇をTODOに追加して」');
-  if (/(スケジュール|予定|時)/.test(n))   hints.push('「10時から〇〇をスケジュールに追加して」');
-  if (/(進捗|達成|完了|状況)/.test(n))    hints.push('「今週の進捗を教えて」「期限が近いタスクは？」');
+  if (/(スケジュール|予定|時|限)/.test(n)) hints.push('「3限にゼミを追加して」「土曜の午後にバイト」「〇〇の予定キャンセルして」');
+  if (/(進捗|達成|完了|状況)/.test(n))    hints.push('「今週の進捗を教えて」「今日やること全部教えて」');
   if (hints.length > 0) return { text: `うまく理解できませんでした 🤔\n\nこんな言い方はいかがですか？\n${hints.join('\n')}` };
   return { text: 'すみません、その内容は理解できませんでした 🤔\n「ヘルプ」と送るとできることの一覧が見れます！' };
 }
