@@ -274,6 +274,181 @@
     ::-webkit-scrollbar { width: 5px; height: 5px; }
     ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
     ::-webkit-scrollbar-track { background: transparent; }
+
+    /* ════════════════════════════════════════
+       THEMES
+    ════════════════════════════════════════ */
+
+    /* ── Cyber ── */
+    [data-theme="cyber"] {
+      --primary: #00d4ff; --primary-dark: #008fcc; --primary-light: #001f30;
+      --primary-mid: #00a8d4; --primary-pale: #002d42;
+      --bg: #060c1a; --bg-card: #0c1526; --text-primary: #c8dce8;
+      --text-secondary: #3d6070; --border: #162436;
+      --urgent: #ff4f6a; --urgent-dark: #cc1f3a;
+      --warning-bg: #1a1000; --radius: 6px; --radius-sm: 4px;
+    }
+    [data-theme="cyber"] body {
+      background: radial-gradient(ellipse at 10% 30%, #0a1a2e 0%, #060c1a 60%);
+      min-height: 100vh;
+    }
+    [data-theme="cyber"] .sidebar {
+      background: #050a15;
+      background-image:
+        linear-gradient(rgba(0,212,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,.04) 1px, transparent 1px);
+      background-size: 22px 22px;
+      border-right-color: #0e2030;
+    }
+    [data-theme="cyber"] .card,
+    [data-theme="cyber"] .task-full,
+    [data-theme="cyber"] .metric-card {
+      border-color: rgba(0,212,255,.12);
+      box-shadow: 0 0 18px rgba(0,212,255,.06), inset 0 0 0 0.5px rgba(0,212,255,.04);
+    }
+    [data-theme="cyber"] .metric-card.accent { border-top-color: var(--primary); box-shadow: 0 0 24px rgba(0,212,255,.15); }
+    [data-theme="cyber"] .btn-primary { box-shadow: 0 0 14px rgba(0,212,255,.35); }
+    [data-theme="cyber"] .nav-item.active { text-shadow: 0 0 10px var(--primary); }
+    [data-theme="cyber"] .logo-dot { box-shadow: 0 0 10px #00d4ff; animation: cyberPulse 2s ease-in-out infinite; }
+    [data-theme="cyber"] .page-title { letter-spacing: .04em; }
+    [data-theme="cyber"] .form-input,
+    [data-theme="cyber"] .form-select { background: #0c1526; color: var(--text-primary); border-color: #162436; }
+    [data-theme="cyber"] .modal { background: #0c1526; }
+    [data-theme="cyber"] .pbar-wrap { background: #001f30; }
+    [data-theme="cyber"] .filter-btn,
+    [data-theme="cyber"] .group-tab { background: #0c1526; color: var(--text-secondary); border-color: #162436; }
+    [data-theme="cyber"] .filter-btn.active,
+    [data-theme="cyber"] .group-tab.active { background: #001f30; border-color: var(--primary); color: var(--primary); }
+    [data-theme="cyber"] .search-box { background: #0c1526; border-color: #162436; }
+    [data-theme="cyber"] .search-box input { color: var(--text-primary); }
+    [data-theme="cyber"] .tag { border: 1px solid rgba(0,212,255,.2); }
+    [data-theme="cyber"] .overlay { background: rgba(0,10,20,.6); backdrop-filter: blur(8px); }
+    @keyframes cyberPulse { 0%,100% { box-shadow: 0 0 6px #00d4ff; } 50% { box-shadow: 0 0 16px #00d4ff, 0 0 30px rgba(0,212,255,.3); } }
+    /* サイバー: スキャンライン */
+    [data-theme="cyber"] .content::after {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 1000;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.03) 2px, rgba(0,0,0,.03) 4px);
+    }
+
+    /* ── Math ── */
+    [data-theme="math"] {
+      --primary: #39d353; --primary-dark: #1a7a2a; --primary-light: #051a0a;
+      --primary-mid: #2cb045; --primary-pale: #0a2e12;
+      --bg: #0d1117; --bg-card: #161b22; --text-primary: #c9d1d9;
+      --text-secondary: #444c56; --border: #21262d;
+      --urgent: #f85149; --urgent-dark: #b91c1c;
+      --warning-bg: #161200; --radius: 4px; --radius-sm: 3px;
+    }
+    [data-theme="math"] body {
+      background: #0d1117;
+      background-image:
+        linear-gradient(rgba(57,211,83,.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(57,211,83,.06) 1px, transparent 1px);
+      background-size: 32px 32px;
+      font-family: 'Courier New', 'SF Mono', monospace;
+    }
+    [data-theme="math"] .sidebar { background: #0d1117; border-right-color: #21262d; }
+    [data-theme="math"] .card,
+    [data-theme="math"] .task-full,
+    [data-theme="math"] .metric-card { border-color: #21262d; border-radius: 3px; }
+    [data-theme="math"] .metric-card.accent { border-top-color: var(--primary); }
+    [data-theme="math"] .btn-primary { font-family: 'Courier New', monospace; letter-spacing: .05em; }
+    [data-theme="math"] .logo::after { content: " f(x)"; color: var(--primary); opacity: .5; font-size: 11px; }
+    [data-theme="math"] .page-title::before { content: ">> "; color: var(--primary); opacity: .6; }
+    [data-theme="math"] .form-input,
+    [data-theme="math"] .form-select { background: #0d1117; color: var(--text-primary); border-color: #21262d; font-family: 'Courier New', monospace; }
+    [data-theme="math"] .modal { background: #161b22; }
+    [data-theme="math"] .filter-btn,
+    [data-theme="math"] .group-tab { background: #161b22; color: var(--text-secondary); border-color: #21262d; font-family: inherit; }
+    [data-theme="math"] .filter-btn.active,
+    [data-theme="math"] .group-tab.active { background: #051a0a; border-color: var(--primary); color: var(--primary); }
+    [data-theme="math"] .search-box { background: #161b22; border-color: #21262d; }
+    [data-theme="math"] .search-box input { color: var(--text-primary); font-family: inherit; }
+    [data-theme="math"] .overlay { background: rgba(0,0,0,.75); backdrop-filter: blur(4px); }
+    [data-theme="math"] .pbar-wrap { background: #0a2e12; }
+    [data-theme="math"] .nav-item.active { color: var(--primary); }
+
+    /* ── Underwater ── */
+    [data-theme="water"] {
+      --primary: #0ea5e9; --primary-dark: #0369a1; --primary-light: #082f49;
+      --primary-mid: #38bdf8; --primary-pale: #0c4a6e;
+      --bg: #071e38; --bg-card: rgba(8,40,72,.82); --text-primary: #bae6fd;
+      --text-secondary: #336080; --border: rgba(14,165,233,.18);
+      --urgent: #f87171; --urgent-dark: #b91c1c;
+      --warning-bg: #1a1000;
+    }
+    [data-theme="water"] body {
+      background: linear-gradient(160deg, #0a2a48 0%, #041120 100%);
+      min-height: 100vh; overflow: hidden;
+    }
+    [data-theme="water"] .app { position: relative; }
+    [data-theme="water"] .sidebar {
+      background: rgba(5,15,30,.9);
+      border-right: 1px solid rgba(14,165,233,.15);
+      backdrop-filter: blur(12px);
+    }
+    [data-theme="water"] .content { position: relative; z-index: 1; }
+    [data-theme="water"] .card,
+    [data-theme="water"] .task-full,
+    [data-theme="water"] .metric-card {
+      background: rgba(8,40,72,.75);
+      backdrop-filter: blur(10px);
+      border-color: rgba(14,165,233,.18);
+      box-shadow: 0 4px 24px rgba(14,165,233,.08);
+    }
+    [data-theme="water"] .metric-card.accent { border-top-color: var(--primary); }
+    [data-theme="water"] .form-input,
+    [data-theme="water"] .form-select { background: rgba(5,20,40,.8); color: var(--text-primary); border-color: rgba(14,165,233,.2); }
+    [data-theme="water"] .modal { background: rgba(6,25,50,.95); backdrop-filter: blur(16px); border: 1px solid rgba(14,165,233,.2); }
+    [data-theme="water"] .overlay { background: rgba(0,10,25,.6); backdrop-filter: blur(10px); }
+    [data-theme="water"] .filter-btn,
+    [data-theme="water"] .group-tab { background: rgba(8,40,72,.6); color: var(--text-secondary); border-color: rgba(14,165,233,.15); }
+    [data-theme="water"] .filter-btn.active,
+    [data-theme="water"] .group-tab.active { background: #082f49; border-color: var(--primary); color: var(--primary); }
+    [data-theme="water"] .search-box { background: rgba(8,40,72,.6); border-color: rgba(14,165,233,.15); }
+    [data-theme="water"] .search-box input { color: var(--text-primary); background: transparent; }
+    [data-theme="water"] .pbar-wrap { background: #082f49; }
+    /* 泡アニメーション */
+    .bubble { position: fixed; border-radius: 50%; background: rgba(14,165,233,.12); border: 1px solid rgba(14,165,233,.2); pointer-events: none; animation: floatUp linear infinite; z-index: 0; }
+    @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: .6; } 100% { transform: translateY(-110vh) scale(1.3); opacity: 0; } }
+
+    /* ── Nature ── */
+    [data-theme="nature"] {
+      --primary: #2d6a4f; --primary-dark: #1b4332; --primary-light: #d8f3dc;
+      --primary-mid: #52b788; --primary-pale: #95d5b2;
+      --bg: #f0f4f0; --bg-card: #ffffff; --text-primary: #1b3a2d;
+      --text-secondary: #52796f; --border: #c8dfc8;
+      --urgent: #bc4749; --urgent-dark: #7a2828;
+      --warning: #dda15e; --warning-dark: #8a5a20; --warning-bg: #fef3e2;
+    }
+    [data-theme="nature"] body { background: #f0f4f0; }
+    [data-theme="nature"] .sidebar {
+      background: linear-gradient(180deg, #edf5ec 0%, #e4f0e3 100%);
+      border-right-color: #c0d9be;
+    }
+    [data-theme="nature"] .metric-card.accent { border-top-color: var(--primary); }
+    [data-theme="nature"] .logo-dot { background: #2d6a4f; }
+    [data-theme="nature"] .btn-primary { background: #2d6a4f; }
+    [data-theme="nature"] .btn-primary:hover { background: #1b4332; }
+    [data-theme="nature"] .filter-btn.active,
+    [data-theme="nature"] .group-tab.active { background: #d8f3dc; border-color: var(--primary); color: var(--primary-dark); }
+    [data-theme="nature"] .pbar { background: #52b788; }
+    [data-theme="nature"] .pbar-wrap { background: #d8f3dc; }
+    [data-theme="nature"] .task-full:hover,
+    [data-theme="nature"] .task-card:hover { border-color: #52b788; }
+
+    /* ── テーマ選択UI ── */
+    .theme-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 4px; }
+    .theme-card { border: 2px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: border-color .15s, transform .1s; }
+    .theme-card:hover { transform: translateY(-2px); }
+    .theme-card.selected { border-color: var(--primary); }
+    .theme-preview { height: 52px; display: flex; }
+    .theme-preview-sidebar { width: 28%; }
+    .theme-preview-content { flex: 1; padding: 5px; display: flex; flex-direction: column; gap: 3px; }
+    .theme-preview-bar { height: 5px; border-radius: 2px; }
+    .theme-preview-card { flex: 1; border-radius: 3px; border: 1px solid; }
+    .theme-label { font-size: 11px; font-weight: 500; text-align: center; padding: 5px 4px; color: var(--text-secondary); background: var(--bg-card); }
   </style>
 </head>
 <body>
@@ -431,6 +606,12 @@
           </div>
           <input type="text" id="settingUserName" class="form-input" style="width:200px;" placeholder="名前を入力" oninput="saveSettings()">
         </div>
+      </div>
+
+      <!-- テーマ -->
+      <div class="card settings-card">
+        <h3>デザインテーマ</h3>
+        <div class="theme-grid" id="themeGrid"></div>
       </div>
 
       <!-- ① グループ管理 -->
@@ -1344,9 +1525,78 @@ function calPrev()  { if (--calMonth<0)  { calMonth=11; calYear--; } renderCalen
 function calNext()  { if (++calMonth>11) { calMonth=0;  calYear++; } renderCalendar(); }
 function calToday() { const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); renderCalendar(); }
 
+// ─── Themes ───────────────────────────────────────────────────────────────────
+const THEMES = [
+  {
+    id: 'default', name: 'デフォルト',
+    sidebar: '#ffffff', content: '#f8fafc', bar: '#378ADD', card: '#ffffff', cardBorder: '#E5E7EB',
+  },
+  {
+    id: 'cyber', name: 'サイバー',
+    sidebar: '#050a15', content: '#060c1a', bar: '#00d4ff', card: '#0c1526', cardBorder: 'rgba(0,212,255,.2)',
+  },
+  {
+    id: 'math', name: '数学',
+    sidebar: '#0d1117', content: '#0d1117', bar: '#39d353', card: '#161b22', cardBorder: '#21262d',
+  },
+  {
+    id: 'water', name: '水中',
+    sidebar: '#050f1e', content: '#071e38', bar: '#0ea5e9', card: 'rgba(8,40,72,.82)', cardBorder: 'rgba(14,165,233,.2)',
+  },
+  {
+    id: 'nature', name: '大自然',
+    sidebar: '#edf5ec', content: '#f0f4f0', bar: '#2d6a4f', card: '#ffffff', cardBorder: '#c8dfc8',
+  },
+];
+
+let bubbleInterval = null;
+
+function applyTheme(id) {
+  // 既存の泡を消す
+  clearInterval(bubbleInterval);
+  document.querySelectorAll('.bubble').forEach(b => b.remove());
+
+  document.documentElement.setAttribute('data-theme', id === 'default' ? '' : id);
+  const s = getSettings(); s.theme = id; setSettings(s);
+
+  if (id === 'water') spawnBubbles();
+}
+
+function spawnBubbles() {
+  const create = () => {
+    const b = document.createElement('div');
+    b.className = 'bubble';
+    const size = 8 + Math.random() * 24;
+    b.style.cssText = `width:${size}px;height:${size}px;left:${Math.random()*100}vw;bottom:-${size}px;animation-duration:${6+Math.random()*10}s;animation-delay:${Math.random()*4}s;`;
+    document.body.appendChild(b);
+    setTimeout(() => b.remove(), 18000);
+  };
+  for (let i = 0; i < 12; i++) setTimeout(create, i * 400);
+  bubbleInterval = setInterval(create, 1800);
+}
+
+function renderThemeGrid() {
+  const el = document.getElementById('themeGrid');
+  if (!el) return;
+  const current = getSettings().theme || 'default';
+  el.innerHTML = THEMES.map(t => `
+    <div class="theme-card ${current === t.id ? 'selected' : ''}" onclick="applyTheme('${t.id}');renderThemeGrid();">
+      <div class="theme-preview">
+        <div class="theme-preview-sidebar" style="background:${t.sidebar};border-right:1px solid ${t.cardBorder};"></div>
+        <div class="theme-preview-content" style="background:${t.content};">
+          <div class="theme-preview-bar" style="background:${t.bar};"></div>
+          <div class="theme-preview-card" style="background:${t.card};border-color:${t.cardBorder};"></div>
+          <div class="theme-preview-card" style="background:${t.card};border-color:${t.cardBorder};"></div>
+        </div>
+      </div>
+      <div class="theme-label">${t.name}</div>
+    </div>`).join('');
+}
+
 // ─── Settings ─────────────────────────────────────────────────────────────────
 function renderSettings() {
   document.getElementById('settingUserName').value = getSettings().userName || '';
+  renderThemeGrid();
   renderGroupList();
   renderCategoryList();
 }
@@ -1486,6 +1736,9 @@ function launchConfetti(originEl) {
 document.addEventListener('DOMContentLoaded', () => {
   const now = new Date();
   calYear = now.getFullYear(); calMonth = now.getMonth();
+  // 保存済みテーマを復元
+  const savedTheme = getSettings().theme || 'default';
+  applyTheme(savedTheme);
   renderDashboard();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
