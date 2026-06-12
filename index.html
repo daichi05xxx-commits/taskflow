@@ -1940,6 +1940,31 @@ function botExtractTime(text) {
   return null;
 }
 
+// 時刻レンジ抽出（「12時から15時まで」「13時から14時半」「9:00〜10:30」など）
+// → { start:'HH:MM', end:'HH:MM', duration:分 } もしくは null
+function botExtractTimeRange(text) {
+  // 「X時(分)?〜Y時(分)?」形式
+  let m = text.match(/(\d{1,2})時((\d{2})分|半)?\s*(から|〜|～|-|ー|‐)\s*(\d{1,2})時((\d{2})分|半)?\s*(まで|迄)?/);
+  if (m) {
+    const sh = parseInt(m[1]), smm = m[2]==='半' ? 30 : parseInt(m[3]||'0');
+    const eh = parseInt(m[5]), emm = m[6]==='半' ? 30 : parseInt(m[7]||'0');
+    return _mkRange(sh, smm, eh, emm);
+  }
+  // 「HH:MM〜HH:MM」形式
+  m = text.match(/(\d{1,2}):(\d{2})\s*(から|〜|～|-|ー|‐|to)\s*(\d{1,2}):(\d{2})/);
+  if (m) {
+    return _mkRange(parseInt(m[1]), parseInt(m[2]), parseInt(m[4]), parseInt(m[5]));
+  }
+  return null;
+}
+
+function _mkRange(sh, smm, eh, emm) {
+  let dur = (eh*60+emm) - (sh*60+smm);
+  if (dur <= 0) dur += 24*60;   // 日跨ぎ等の保険
+  const pad = x => String(x).padStart(2,'0');
+  return { start:`${pad(sh)}:${pad(smm)}`, end:`${pad(eh)}:${pad(emm)}`, duration:dur };
+}
+
 // タスク名を文章から抽出
 function botExtractTaskName(text) {
   return text
@@ -2602,10 +2627,11 @@ function botAddSchedule(original, n) {
     // 「カレンダーに〇〇日に〇〇」→ deadlineつきタスクとして登録
     const deadline = botExtractDate(original) || todayStr();
     let title = original
-      .replace(/(を|に|の|へ|は)?(カレンダー)(を|に|の|へ|は)?(追加|入れ|作|登録|入力)(して|する|ください|お願い)?/g, '')
+      .replace(/(を|に|の|へ|は)?(カレンダー)(を|に|の|へ|は)?(追加|入れ|作|登録|入力)(して|する|ください|お願い|て)?/g, '')
       .replace(/カレンダー/g, '')
+      .replace(/(今日|明日|明後日|来週)(の|まで|から|に)?/g, '')
       .replace(/\d{1,2}月\d{1,2}日の?に?/g, '')
-      .replace(/(追加|入れ|入力)(して|する|ください|お願い)?/g, '')
+      .replace(/(追加|入れ|入力)(して|する|ください|お願い|て)?/g, '')
       .replace(/[、,，。\s]+/g, ' ')
       .replace(/^(の|を|が|は|に|と|で|\s)+|(\s|の|を|が|は|に|と|で)+$/g, '')
       .trim();
@@ -2619,21 +2645,30 @@ function botAddSchedule(original, n) {
     renderPage(currentPage);
     return { text: `📅 「${title}」を${deadline}の予定としてカレンダーに追加しました！` };
   }
-  const startTime = botExtractTime(original) || '09:00';
-  const durMatch = original.replace(/\d(限|時限)/g,'').match(/(\d+)(時間|分)/);
-  const duration = durMatch ? (durMatch[2]==='時間' ? parseInt(durMatch[1])*60 : parseInt(durMatch[1])) : 60;
+  const range = botExtractTimeRange(original);
+  const startTime = range ? range.start : (botExtractTime(original) || '09:00');
+  let duration;
+  if (range) {
+    duration = range.duration;
+  } else {
+    const durMatch = original.replace(/\d(限|時限)/g,'').match(/(\d+)(時間|分)/);
+    duration = durMatch ? (durMatch[2]==='時間' ? parseInt(durMatch[1])*60 : parseInt(durMatch[1])) : 60;
+  }
   const dateForSched = botExtractDate(original) || todayStr();
   let title = original
     .replace(/(を|に|の|へ|は)?(カレンダー|スケジュール|予定)(を|に|の|へ|は)?(追加|入れ|作|登録|入力)(して|する|ください|お願い)?/g, '')
     .replace(/(カレンダー)/g, '')
     .replace(/\d(限|時限)/g, '')
-    .replace(/(\d{1,2})時((\d{2})分)?から?/g, '')
+    .replace(/(\d{1,2})時((\d{2})分|半)?\s*(から|〜|～|-|ー|‐)\s*(\d{1,2})時((\d{2})分|半)?\s*(まで|迄)?/g, '')  // 時刻レンジ
+    .replace(/(\d{1,2}):(\d{2})\s*(から|〜|～|-|ー|‐|to)\s*(\d{1,2}):(\d{2})/g, '')                          // HH:MMレンジ
+    .replace(/(\d{1,2})時((\d{2})分|半)?(から|まで|迄)?/g, '')                                                 // 単独時刻
+    .replace(/(\d{1,2}):(\d{2})/g, '')                                                                          // 単独HH:MM
     .replace(/(\d+)(時間|分)/g, '')
-    .replace(/(今日|明日|明後日|来週).{0,3}(まで|から|の)?/g, '')
+    .replace(/(今日|明日|明後日|来週)(の|まで|から|に)?/g, '')
     .replace(/(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?の?/g, '')
     .replace(/\d{1,2}月\d{1,2}日の?に?/g, '')
     .replace(/(午前|午後|朝|昼|夜|夕方)(に|から|は)?/g, '')
-    .replace(/(追加|入れ|入力)(して|する|ください|お願い)?/g, '')
+    .replace(/(追加|入れ|入力)(して|する|ください|お願い|て)?/g, '')
     .replace(/[、,，。\s]+/g, ' ')
     .replace(/^(の|を|が|は|に|と|で|\s)+|(\s|の|を|が|は|に|と|で)+$/g, '')
     .trim();
@@ -2788,6 +2823,9 @@ const BOT_TESTS = [
   { g:'core', in:'土曜の午後にバイト',                want:'add_schedule' },
   { g:'core', in:'10時から数学をスケジュールに追加して', want:'add_schedule' },
   { g:'core', in:'明日の予定にミーティングを追加',    want:'add_schedule' },
+  // 時刻レンジ（〜から〜まで）→ 開始時刻・所要時間・題名を正しく抽出（報告バグの回帰）
+  { g:'core', in:'カレンダーに明日の12時から15時まで、NANDEMO、と入力して', want:'add_schedule', sdur:180, stitle:'NANDEMO' },
+  { g:'core', in:'13時から14時半に会議を入れて',     want:'add_schedule', sdur:90,  stitle:'会議' },
   // ── 複数日付（既知バグの回帰） ──
   { g:'core', in:'6月20日と21日にWINGビジコン',        want:'add_multi', tasks:2, dl:['2026-06-20','2026-06-21'] },
   { g:'core', in:'カレンダーに6月20日、21日にWINGビジコンと入力して', want:'add_multi', tasks:2, dl:['2026-06-20','2026-06-21'] },
@@ -2896,6 +2934,15 @@ function runBotTests() {
         const newDls = after.tasks.filter(a=>!before.tasks.find(b=>b.id===a.id)).map(a=>a.deadline).sort();
         const wantDls = [...tc.dl].sort();
         if (JSON.stringify(newDls) !== JSON.stringify(wantDls)) { pass = false; notes.push(`期限 期待[${wantDls}]/実際[${newDls}]`); }
+      }
+      // 追加検証：スケジュールの所要時間・題名
+      if (pass && (tc.sdur != null || tc.stitle)) {
+        const s = after.sched.find(a=>!before.sched.find(b=>b.id===a.id));
+        if (!s) { pass = false; notes.push('スケジュール未追加'); }
+        else {
+          if (tc.sdur != null && s.duration !== tc.sdur) { pass = false; notes.push(`所要 期待${tc.sdur}/実際${s.duration}`); }
+          if (tc.stitle && s.title !== tc.stitle)        { pass = false; notes.push(`題名 期待${tc.stitle}/実際${s.title}`); }
+        }
       }
       results.push({ g:tc.g, in:tc.in, want:tc.want, got, pass, notes:notes.join(' / ') });
     }
