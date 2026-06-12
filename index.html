@@ -202,6 +202,7 @@
     .cal-day.today .cal-day-num { color: var(--primary); font-weight: 700; }
     .cal-ev { font-size: 10px; padding: 1px 4px; border-radius: 3px; background: var(--primary-light); color: var(--primary-dark); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
     .cal-ev.urgent-ev { background: #fee2e2; color: var(--urgent-dark); }
+    .cal-ev.cal-ev-sched { background: #e0f2fe; color: #0369a1; }
 
     /* ── Settings ── */
     .settings-card { margin-bottom: 16px; }
@@ -1614,7 +1615,10 @@ function renderCalendar() {
   const mNames = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
   document.getElementById('calTitle').textContent = `${calYear}年 ${mNames[calMonth]}`;
   const tasks = getTasks(), taskMap = {};
-  tasks.forEach(t => { if (t.deadline) { taskMap[t.deadline] = taskMap[t.deadline] || []; taskMap[t.deadline].push(t); } });
+  tasks.forEach(t => { if (t.deadline) { taskMap[t.deadline] = taskMap[t.deadline] || []; taskMap[t.deadline].push({ type:'task', item:t }); } });
+  // スケジュールも日付別に集める
+  const scheds = getSched();
+  scheds.forEach(s => { if (s.date) { taskMap[s.date] = taskMap[s.date] || []; taskMap[s.date].push({ type:'sched', item:s }); } });
   const first = new Date(calYear, calMonth, 1);
   const firstDow = (first.getDay()+6)%7, daysInM = new Date(calYear,calMonth+1,0).getDate(), daysInP = new Date(calYear,calMonth,0).getDate();
   let html = ['月','火','水','木','金','土','日'].map(d=>`<div class="cal-day-hdr">${d}</div>`).join('');
@@ -1622,9 +1626,16 @@ function renderCalendar() {
   for (let d=1;d<=daysInM;d++) {
     const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const evts = taskMap[ds]||[];
+    const evtHtml = evts.slice(0,3).map(e => {
+      if (e.type === 'sched') {
+        return `<div class="cal-ev cal-ev-sched">⏰ ${escHtml(e.item.title)}</div>`;
+      }
+      const t = e.item;
+      return `<div class="cal-ev ${t.deadline<tStr&&t.status!=='done'?'urgent-ev':''}">${escHtml(t.name)}</div>`;
+    }).join('');
     html += `<div class="cal-day${ds===tStr?' today':''}">
       <div class="cal-day-num">${d}</div>
-      ${evts.slice(0,3).map(t=>`<div class="cal-ev ${t.deadline<tStr&&t.status!=='done'?'urgent-ev':''}">${escHtml(t.name)}</div>`).join('')}
+      ${evtHtml}
       ${evts.length>3?`<div style="font-size:10px;color:var(--text-secondary);margin-top:2px;">+${evts.length-3}件</div>`:''}
     </div>`;
   }
@@ -1726,19 +1737,24 @@ function botExtractDate(text) {
   const DAYS = {'日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6};
   const wm = text.match(/(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?/);
   if (wm) {
-    const targetDow = DAYS[wm[2]];
-    const todayDow = today.getDay();
-    let diff;
-    if (/来週|次/.test(wm[1] || '')) {
-      // 次の週の月曜を起点に計算
-      const toMon = ((1 - todayDow) + 7) % 7 || 7;
-      diff = toMon + (targetDow - 1 + 7) % 7;
-    } else {
-      diff = targetDow - todayDow;
-      if (diff <= 0) diff += 7;
+    // 「6月」「12月」など数字+月 の月を曜日と誤認しないよう除外
+    const beforeIdx = wm.index + (wm[1]||'').length;
+    const prevChar = text[beforeIdx - 1];
+    const isMonthNum = wm[2] === '月' && prevChar && /\d/.test(prevChar);
+    if (!isMonthNum) {
+      const targetDow = DAYS[wm[2]];
+      const todayDow = today.getDay();
+      let diff;
+      if (/来週|次/.test(wm[1] || '')) {
+        const toMon = ((1 - todayDow) + 7) % 7 || 7;
+        diff = toMon + (targetDow - 1 + 7) % 7;
+      } else {
+        diff = targetDow - todayDow;
+        if (diff <= 0) diff += 7;
+      }
+      const d = new Date(today); d.setDate(d.getDate() + diff);
+      return d.toISOString().split('T')[0];
     }
-    const d = new Date(today); d.setDate(d.getDate() + diff);
-    return d.toISOString().split('T')[0];
   }
   // 来週（曜日なし）→ +7日
   if (/来週/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+7); return d.toISOString().split('T')[0]; }
@@ -1782,25 +1798,31 @@ function botExtractTaskName(text) {
 // 複数日付を全て抽出（「6月20日と21日」「6月20・21日」など）
 function botExtractAllDates(text) {
   const today = new Date(); today.setHours(0,0,0,0);
-  const dates = [];
-  // "MM月DD日" を全て拾う
-  const re = /(\d{1,2})月(\d{1,2})日/g;
-  let m, lastMonth = null;
-  // まず月付きの日付を拾いつつ最後の月を記憶
   const tmp = [];
-  while ((m = re.exec(text)) !== null) {
-    lastMonth = parseInt(m[1]);
-    const ds = new Date(today.getFullYear(), lastMonth-1, parseInt(m[2])).toISOString().split('T')[0];
-    if (!tmp.includes(ds)) tmp.push(ds);
-  }
-  // 「6月20日と21日」のように月なしのDD日が続く場合を補完
-  if (lastMonth !== null) {
-    const re2 = /(?<!\d月)(\d{1,2})日/g;
-    while ((m = re2.exec(text)) !== null) {
-      // 直前が月付き日付でない独立したDD日
-      const ds = new Date(today.getFullYear(), lastMonth-1, parseInt(m[1])).toISOString().split('T')[0];
+  // 「MM月DD日」の先頭パターンを錨にして続く「区切り+DD日」を順番に拾う
+  const headRe = /(\d{1,2})月(\d{1,2})日/;
+  const hm = text.match(headRe);
+  if (hm) {
+    const month = parseInt(hm[1]);
+    tmp.push(new Date(today.getFullYear(), month-1, parseInt(hm[2])).toISOString().split('T')[0]);
+    let rest = text.slice(hm.index + hm[0].length);
+    while (true) {
+      // 区切り文字（と・、,空白や）に続くDD日のみを拾う
+      const cm = rest.match(/^[と・、,\s　やかつ及び]+(\d{1,2})日/);
+      if (!cm) break;
+      const ds = new Date(today.getFullYear(), month-1, parseInt(cm[1])).toISOString().split('T')[0];
       if (!tmp.includes(ds)) tmp.push(ds);
+      rest = rest.slice(cm[0].length);
     }
+    if (tmp.length > 1) return tmp.sort();
+  }
+  // 複数の「MM月DD日」パターンが散在する場合
+  tmp.length = 0;
+  const allRe = /(\d{1,2})月(\d{1,2})日/g;
+  let m;
+  while ((m = allRe.exec(text)) !== null) {
+    const ds = new Date(today.getFullYear(), parseInt(m[1])-1, parseInt(m[2])).toISOString().split('T')[0];
+    if (!tmp.includes(ds)) tmp.push(ds);
   }
   if (tmp.length > 0) return tmp.sort();
   const single = botExtractDate(text);
@@ -2296,11 +2318,12 @@ function botAddTodo(original, n) {
 }
 
 function botAddMultipleDates(original, n, dates) {
-  const isSchedule = /(カレンダー|スケジュール|予定)/.test(n);
+  // カレンダーのみ指定（スケジュール・予定・時刻なし）→ タスク登録（カレンダーページで見える）
+  const isSchedule = /(スケジュール|予定)/.test(n) || botExtractTime(original) !== null;
   // タイトル抽出：日付・助詞・操作ワードを除去
   let title = original
     .replace(/(\d{1,2})月(\d{1,2})日/g, '')
-    .replace(/(?<!\d月)(\d{1,2})日/g, '')  // 月なし単独DD日も除去
+    .replace(/\d{1,2}日/g, '')  // 月なし単独DD日も除去
     .replace(/(カレンダー|スケジュール|予定|タスク|課題)/g, '')
     .replace(/(と|・|、|,)/g, ' ')
     .replace(/(に|を|が|は|の|で|から|まで|へ)?(入力|追加|入れ|作成|登録)(して|する|ください|お願い|します)?/g, ' ')
@@ -2326,13 +2349,35 @@ function botAddMultipleDates(original, n, dates) {
       setTasks([...getTasks(), { id:uid(), name:title, group, tag:'', status:'todo', progress:0, deadline:date, memo:'', createdAt:todayStr() }]);
     });
     renderPage(currentPage);
-    return { text: `📋 「${title}」を${dates.length}件のタスクとして追加しました！\n${dates.map(d=>`  📅 期限 ${d}`).join('\n')}` };
+    const isCalCtx = /カレンダー/.test(n);
+    const label = isCalCtx ? 'カレンダーに追加しました！' : 'タスクとして追加しました！';
+    return { text: `📅 「${title}」を${dates.length}日程${label}\n${dates.map(d=>`  📅 ${d}`).join('\n')}` };
   }
 }
 
 function botAddSchedule(original, n) {
+  // カレンダーのみ指定（スケジュール・予定・時刻なし）→ タスク登録（カレンダーページに表示される）
+  const hasTime = botExtractTime(original) !== null;
+  const hasSchedKeyword = /(スケジュール|予定)/.test(n);
+  if (!hasTime && !hasSchedKeyword) {
+    // 「カレンダーに〇〇日に〇〇」→ deadlineつきタスクとして登録
+    const deadline = botExtractDate(original) || todayStr();
+    let title = original
+      .replace(/(を|に|の|へ|は)?(カレンダー)(を|に|の|へ|は)?(追加|入れ|作|登録|入力)(して|する|ください|お願い)?/g, '')
+      .replace(/カレンダー/g, '')
+      .replace(/\d{1,2}月\d{1,2}日の?に?/g, '')
+      .replace(/(追加|入れ|入力)(して|する|ください|お願い)?/g, '')
+      .replace(/[、,，。\s]+/g, ' ')
+      .replace(/^(の|を|が|は|に|と|で|\s)+|(\s|の|を|が|は|に|と|で)+$/g, '')
+      .trim();
+    if (!title || title.length < 2) return { text: 'タスク名を教えてください。\n例：「カレンダーの6月20日にWINGビジコン」' };
+    const groups = getGroups();
+    const group = groups.find(g => title.includes(g.name))?.id || '';
+    setTasks([...getTasks(), { id:uid(), name:title, group, tag:'', status:'todo', progress:0, deadline, memo:'', createdAt:todayStr() }]);
+    renderPage(currentPage);
+    return { text: `📅 「${title}」を${deadline}の予定としてカレンダーに追加しました！` };
+  }
   const startTime = botExtractTime(original) || '09:00';
-  // 時間単位の数字と分は別途処理（duration用）
   const durMatch = original.replace(/\d(限|時限)/g,'').match(/(\d+)(時間|分)/);
   const duration = durMatch ? (durMatch[2]==='時間' ? parseInt(durMatch[1])*60 : parseInt(durMatch[1])) : 60;
   const dateForSched = botExtractDate(original) || todayStr();
