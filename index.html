@@ -818,12 +818,6 @@ function deleteGroup(id) {
 }
 
 // ─── カテゴリ管理 ─────────────────────────────────────────────────────────────
-const DEFAULT_CATS = [
-  { value:'dev',      label:'開発',   color:'blue'   },
-  { value:'priority', label:'優先',   color:'yellow' },
-  { value:'other',    label:'その他', color:'gray'   },
-];
-const DEFAULT_CAT_VALS = DEFAULT_CATS.map(c => c.value);
 const TAG_STYLES = {
   blue:  'background:#E6F1FB;color:#185FA5;',
   yellow:'background:#FAEEDA;color:#854F0B;',
@@ -834,7 +828,7 @@ const TAG_STYLES = {
   done:  'background:#f3f4f6;color:#6B7280;',
 };
 
-function getCategories() { return getSettings().categories || DEFAULT_CATS; }
+function getCategories() { return getSettings().categories || []; }
 function getCat(value) { return getCategories().find(c => c.value === value) || { value, label:value, color:'gray' }; }
 function tagHtml(value, isDone=false) {
   if (isDone) return `<span class="tag" style="${TAG_STYLES.done}">完了</span>`;
@@ -852,18 +846,13 @@ function populateTagSelect(currentValue) {
 function renderCategoryList() {
   const el = document.getElementById('categoryList');
   if (!el) return;
-  el.innerHTML = getCategories().map(cat => {
-    const isDef = DEFAULT_CAT_VALS.includes(cat.value);
-    return `<div class="cat-row">
-      <div class="cat-preview">
-        <span class="tag" style="${TAG_STYLES[cat.color]||TAG_STYLES.gray}">${escHtml(cat.label)}</span>
-        ${isDef ? '<span class="default-badge">デフォルト</span>' : ''}
-      </div>
-      ${isDef
-        ? '<span style="font-size:11px;color:var(--text-secondary);">削除不可</span>'
-        : `<button class="icon-btn del" onclick="deleteCategory('${cat.value}')" title="削除"><i class="ti ti-trash"></i></button>`}
-    </div>`;
-  }).join('');
+  const cats = getCategories();
+  if (cats.length === 0) { el.innerHTML = '<div class="empty" style="padding:12px 0;"><p>カテゴリがありません</p></div>'; return; }
+  el.innerHTML = cats.map(cat => `
+    <div class="cat-row">
+      <span class="tag" style="${TAG_STYLES[cat.color]||TAG_STYLES.gray}">${escHtml(cat.label)}</span>
+      <button class="icon-btn del" onclick="deleteCategory('${cat.value}')" title="削除"><i class="ti ti-trash"></i></button>
+    </div>`).join('');
 }
 
 function addCategory() {
@@ -879,7 +868,6 @@ function addCategory() {
 }
 
 function deleteCategory(value) {
-  if (DEFAULT_CAT_VALS.includes(value)) return;
   if (!confirm('このカテゴリを削除しますか？')) return;
   const s = getSettings();
   s.categories = getCategories().filter(c => c.value !== value);
