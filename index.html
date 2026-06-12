@@ -438,6 +438,37 @@
     [data-theme="nature"] .task-full:hover,
     [data-theme="nature"] .task-card:hover { border-color: #52b788; }
 
+    /* ── Chat ── */
+    .chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 140px); }
+    .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; }
+    .chat-msg { display: flex; gap: 10px; max-width: 80%; }
+    .chat-msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .chat-msg.ai   { align-self: flex-start; }
+    .chat-avatar { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; margin-top: 2px; }
+    .chat-msg.ai   .chat-avatar { background: var(--primary-light); color: var(--primary); }
+    .chat-msg.user .chat-avatar { background: var(--primary); color: white; }
+    .chat-bubble { padding: 10px 14px; border-radius: 12px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .chat-msg.ai   .chat-bubble { background: var(--bg-card); border: 1px solid var(--border); border-top-left-radius: 4px; }
+    .chat-msg.user .chat-bubble { background: var(--primary); color: white; border-top-right-radius: 4px; }
+    .chat-tool-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; background: var(--primary-light); color: var(--primary-dark); padding: 2px 8px; border-radius: 10px; margin: 2px 2px 2px 0; }
+    .chat-quick { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+    .chat-quick button { padding: 6px 14px; border: 1px solid var(--border); border-radius: 20px; font-size: 12px; background: var(--bg-card); color: var(--text-secondary); cursor: pointer; }
+    .chat-quick button:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+    .chat-input-row { display: flex; gap: 8px; margin-top: 8px; }
+    .chat-input-row input { flex: 1; padding: 10px 14px; border: 1px solid var(--border); border-radius: 24px; font-size: 13px; outline: none; background: var(--bg-card); color: var(--text-primary); }
+    .chat-input-row input:focus { border-color: var(--primary); }
+    .chat-input-row button { width: 42px; height: 42px; border-radius: 50%; background: var(--primary); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .chat-input-row button:hover { background: var(--primary-dark); }
+    .chat-input-row button:disabled { opacity: .5; cursor: not-allowed; }
+    .typing-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--text-secondary); animation: typingBounce 1.1s ease-in-out infinite; margin: 0 2px; }
+    .typing-dot:nth-child(2) { animation-delay: .18s; }
+    .typing-dot:nth-child(3) { animation-delay: .36s; }
+    @keyframes typingBounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-7px); } }
+    .chat-clear-btn { font-size: 12px; color: var(--text-secondary); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); }
+    .chat-clear-btn:hover { background: var(--bg); color: var(--urgent); }
+    .api-key-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
+    .api-key-hint a { color: var(--primary); }
+
     /* ── テーマ選択UI ── */
     .theme-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 4px; }
     .theme-card { border: 2px solid var(--border); border-radius: var(--radius); overflow: hidden; cursor: pointer; transition: border-color .15s, transform .1s; }
@@ -460,6 +491,7 @@
     <div class="nav-body">
       <div class="nav-item active" onclick="navigate('dashboard')"><i class="ti ti-layout-dashboard"></i>ダッシュボード</div>
       <div class="nav-item" onclick="navigate('tasks')"><i class="ti ti-checklist"></i>タスク一覧</div>
+      <div class="nav-item" onclick="navigate('chat')"><i class="ti ti-message-chatbot"></i>AIアシスタント</div>
       <div class="nav-item" onclick="navigate('report')"><i class="ti ti-chart-bar"></i>進捗レポート</div>
       <div class="nav-item" onclick="navigate('calendar')"><i class="ti ti-calendar"></i>カレンダー</div>
       <div class="nav-item" onclick="navigate('settings')"><i class="ti ti-settings"></i>設定</div>
@@ -548,6 +580,32 @@
       <div id="taskListFull"></div>
     </div>
 
+    <!-- ══ CHAT ══ -->
+    <div id="page-chat" class="page">
+      <div class="page-header" style="margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div class="page-title">AIアシスタント</div>
+            <div class="page-sub">自然言語でタスク・TODO・スケジュールを管理</div>
+          </div>
+          <button class="chat-clear-btn" onclick="clearChat()"><i class="ti ti-trash"></i> 履歴をクリア</button>
+        </div>
+      </div>
+      <div class="chat-wrap">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-quick">
+          <button onclick="quickChat('今日のタスク一覧を教えて')"><i class="ti ti-list"></i> タスク一覧</button>
+          <button onclick="quickChat('今日のTODOを教えて')"><i class="ti ti-checkbox"></i> 今日のTODO</button>
+          <button onclick="quickChat('新しいタスクを追加したい')"><i class="ti ti-plus"></i> タスク追加</button>
+          <button onclick="quickChat('今日のスケジュールに追加して')"><i class="ti ti-calendar-plus"></i> スケジュール追加</button>
+        </div>
+        <div class="chat-input-row">
+          <input type="text" id="chatInput" placeholder="「明日までにレポートのタスクを追加して」など..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}">
+          <button id="chatSendBtn" onclick="sendChat()"><i class="ti ti-send"></i></button>
+        </div>
+      </div>
+    </div>
+
     <!-- ══ REPORT ══ -->
     <div id="page-report" class="page">
       <div class="page-header">
@@ -605,6 +663,21 @@
             <div class="settings-sub">ダッシュボードに表示する名前</div>
           </div>
           <input type="text" id="settingUserName" class="form-input" style="width:200px;" placeholder="名前を入力" oninput="saveSettings()">
+        </div>
+      </div>
+
+      <!-- AI設定 -->
+      <div class="card settings-card">
+        <h3>AI設定</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Anthropic APIキー</div>
+            <div class="settings-sub">AIアシスタントの使用に必要です</div>
+          </div>
+        </div>
+        <input type="password" id="settingApiKey" class="form-input" placeholder="sk-ant-api..." oninput="saveApiKey()" style="margin-bottom:6px;">
+        <div class="api-key-hint">
+          APIキーは <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a> で取得できます。ブラウザのローカルストレージにのみ保存されます。
         </div>
       </div>
 
@@ -934,7 +1007,7 @@ function getWeekCounts() {
 }
 
 // ─── Routing ──────────────────────────────────────────────────────────────────
-const PAGES = ['dashboard','tasks','report','calendar','settings'];
+const PAGES = ['dashboard','tasks','chat','report','calendar','settings'];
 let currentPage = 'dashboard';
 let calYear, calMonth;
 let reportWeekChart = null, statusChart = null;
@@ -951,6 +1024,7 @@ function navigate(page) {
 function renderPage(page) {
   if (page === 'dashboard') renderDashboard();
   if (page === 'tasks')     renderTasksPage();
+  if (page === 'chat')      renderChatPage();
   if (page === 'report')    renderReport();
   if (page === 'calendar')  renderCalendar();
   if (page === 'settings')  renderSettings();
@@ -1525,6 +1599,243 @@ function calPrev()  { if (--calMonth<0)  { calMonth=11; calYear--; } renderCalen
 function calNext()  { if (++calMonth>11) { calMonth=0;  calYear++; } renderCalendar(); }
 function calToday() { const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); renderCalendar(); }
 
+// ─── AI Chat ──────────────────────────────────────────────────────────────────
+let chatHistory = [];
+let chatBusy    = false;
+
+function renderChatPage() {
+  const el = document.getElementById('chatMessages');
+  if (!el) return;
+  if (chatHistory.length === 0) appendChatBubble('ai', 'こんにちは！TaskFlowのAIアシスタントです。\n「明日10時にミーティングを追加して」「今週中にレポートのタスクを作って」のように話しかけてください。');
+}
+
+function clearChat() {
+  chatHistory = [];
+  const el = document.getElementById('chatMessages');
+  if (el) el.innerHTML = '';
+  renderChatPage();
+}
+
+function quickChat(msg) {
+  const input = document.getElementById('chatInput');
+  if (input) input.value = msg;
+  sendChat();
+}
+
+async function sendChat() {
+  if (chatBusy) return;
+  const input   = document.getElementById('chatInput');
+  const sendBtn = document.getElementById('chatSendBtn');
+  const text    = input.value.trim();
+  if (!text) return;
+
+  const apiKey = getSettings().apiKey;
+  if (!apiKey) {
+    appendChatBubble('ai', 'APIキーが設定されていません。\n設定ページの「AI設定」からAnthropicのAPIキーを入力してください。');
+    return;
+  }
+
+  input.value = '';
+  chatBusy = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  appendChatBubble('user', text);
+  chatHistory.push({ role: 'user', content: text });
+
+  const typingId = showTypingIndicator();
+  try {
+    await runChatLoop(apiKey);
+  } catch (e) {
+    appendChatBubble('ai', `エラーが発生しました。\n${e.message}`);
+  } finally {
+    removeTypingIndicator(typingId);
+    chatBusy = false;
+    if (sendBtn) sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+async function runChatLoop(apiKey) {
+  for (let turn = 0; turn < 5; turn++) {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: buildSystemPrompt(),
+        messages: chatHistory,
+        tools: getChatTools(),
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || `HTTPエラー ${res.status}`);
+    }
+
+    const data = await res.json();
+    chatHistory.push({ role: 'assistant', content: data.content });
+
+    // テキストを表示
+    const textParts = data.content.filter(c => c.type === 'text');
+    if (textParts.length > 0) appendChatBubble('ai', textParts.map(c => c.text).join(''));
+
+    const toolUses = data.content.filter(c => c.type === 'tool_use');
+    if (toolUses.length === 0 || data.stop_reason !== 'tool_use') break;
+
+    // ツール実行
+    const toolResults = toolUses.map(tu => {
+      const result = execChatTool(tu.name, tu.input);
+      return { type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) };
+    });
+    chatHistory.push({ role: 'user', content: toolResults });
+
+    // データが変わったのでUIを更新
+    if (currentPage !== 'chat') renderPage(currentPage);
+    else { renderDashboard(); }  // バックグラウンドで数値更新
+  }
+}
+
+function buildSystemPrompt() {
+  const groups = getGroups().map(g => `${g.id}(${g.name})`).join(', ') || 'なし';
+  const cats   = getCategories().map(c => `${c.value}(${c.label})`).join(', ');
+  return `あなたはTaskFlowのAIアシスタントです。ユーザーの日本語の指示からタスク・TODO・スケジュールを管理します。
+今日の日付: ${todayStr()}
+利用可能なグループ: ${groups}
+利用可能なカテゴリ: ${cats}
+
+ルール:
+- 「明日」「来週月曜」などの相対日付は今日の日付を基準に YYYY-MM-DD に変換してください
+- 複数アイテムを一度に作成可能です
+- 作成・変更後は内容を簡潔に日本語で報告してください
+- list_tasks/list_todos でデータを確認してからユーザーに報告できます`;
+}
+
+function getChatTools() {
+  return [
+    {
+      name: 'create_task',
+      description: 'タスクを作成する',
+      input_schema: {
+        type: 'object',
+        properties: {
+          name:     { type: 'string',  description: 'タスク名（必須）' },
+          deadline: { type: 'string',  description: '期限 YYYY-MM-DD' },
+          group_id: { type: 'string',  description: 'グループID' },
+          tag:      { type: 'string',  description: 'カテゴリのvalue' },
+          status:   { type: 'string',  enum: ['todo','progress','done'] },
+          memo:     { type: 'string',  description: 'メモ・補足' },
+        },
+        required: ['name'],
+      },
+    },
+    {
+      name: 'create_todo',
+      description: '今日のTODOリストにアイテムを追加する',
+      input_schema: {
+        type: 'object',
+        properties: { text: { type: 'string', description: 'TODOの内容（必須）' } },
+        required: ['text'],
+      },
+    },
+    {
+      name: 'create_schedule',
+      description: 'スケジュール（カレンダーイベント）を追加する',
+      input_schema: {
+        type: 'object',
+        properties: {
+          title:      { type: 'string', description: 'イベントのタイトル（必須）' },
+          date:       { type: 'string', description: '日付 YYYY-MM-DD（必須）' },
+          start_time: { type: 'string', description: '開始時刻 HH:MM（必須）' },
+          duration:   { type: 'number', description: '所要時間（分）、デフォルト60' },
+        },
+        required: ['title', 'date', 'start_time'],
+      },
+    },
+    {
+      name: 'list_tasks',
+      description: '現在登録されているタスク一覧を取得する',
+      input_schema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'list_todos',
+      description: '今日のTODOリストを取得する',
+      input_schema: { type: 'object', properties: {} },
+    },
+  ];
+}
+
+function execChatTool(name, input) {
+  switch (name) {
+    case 'create_task': {
+      const task = {
+        id: uid(), createdAt: todayStr(),
+        name:     input.name,
+        group:    input.group_id || null,
+        tag:      input.tag || (getCategories()[0]?.value || 'other'),
+        status:   input.status || 'todo',
+        progress: input.status === 'done' ? 100 : 0,
+        deadline: input.deadline || null,
+        memo:     input.memo || null,
+      };
+      setTasks([...getTasks(), task]);
+      toast(`タスク「${task.name}」を追加しました`);
+      return { success: true, created: task.name };
+    }
+    case 'create_todo': {
+      const todo = { id: uid(), text: input.text, done: false, date: todayStr() };
+      setTodos([...getTodos(), todo]);
+      toast(`TODO「${todo.text}」を追加しました`);
+      return { success: true, created: todo.text };
+    }
+    case 'create_schedule': {
+      const ev = { id: uid(), title: input.title, startTime: input.start_time, duration: input.duration || 60, date: input.date };
+      setSched([...getSched(), ev]);
+      toast(`スケジュール「${ev.title}」を追加しました`);
+      return { success: true, created: ev.title };
+    }
+    case 'list_tasks':
+      return getTasks().map(t => ({ name: t.name, status: t.status, deadline: t.deadline, group: t.group }));
+    case 'list_todos':
+      return getTodos().filter(t => t.date === todayStr()).map(t => ({ text: t.text, done: t.done }));
+    default:
+      return { error: 'Unknown tool: ' + name };
+  }
+}
+
+function appendChatBubble(role, text) {
+  const el = document.getElementById('chatMessages');
+  if (!el) return;
+  const icon = role === 'user' ? '<i class="ti ti-user"></i>' : '<i class="ti ti-robot"></i>';
+  const div = document.createElement('div');
+  div.className = `chat-msg ${role}`;
+  div.innerHTML = `<div class="chat-avatar">${icon}</div><div class="chat-bubble">${escHtml(text)}</div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function showTypingIndicator() {
+  const el = document.getElementById('chatMessages');
+  if (!el) return null;
+  const id = 'typing_' + Date.now();
+  const div = document.createElement('div');
+  div.className = 'chat-msg ai'; div.id = id;
+  div.innerHTML = `<div class="chat-avatar"><i class="ti ti-robot"></i></div><div class="chat-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+  return id;
+}
+
+function removeTypingIndicator(id) {
+  if (id) document.getElementById(id)?.remove();
+}
+
 // ─── Themes ───────────────────────────────────────────────────────────────────
 const THEMES = [
   {
@@ -1595,10 +1906,18 @@ function renderThemeGrid() {
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
 function renderSettings() {
-  document.getElementById('settingUserName').value = getSettings().userName || '';
+  const s = getSettings();
+  document.getElementById('settingUserName').value = s.userName || '';
+  document.getElementById('settingApiKey').value   = s.apiKey   || '';
   renderThemeGrid();
   renderGroupList();
   renderCategoryList();
+}
+
+function saveApiKey() {
+  const s = getSettings();
+  s.apiKey = document.getElementById('settingApiKey').value.trim();
+  setSettings(s);
 }
 
 function saveSettings() {
