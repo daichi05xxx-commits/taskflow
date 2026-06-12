@@ -568,8 +568,8 @@
       <div class="page-header" style="margin-bottom:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <div>
-            <div class="page-title">AIアシスタント</div>
-            <div class="page-sub">自然言語でタスク・TODO・スケジュールを管理</div>
+            <div class="page-title">アシスタント</div>
+            <div class="page-sub">話しかけてタスク・TODO・スケジュールを操作できます</div>
           </div>
           <button class="chat-clear-btn" onclick="clearChat()"><i class="ti ti-trash"></i> 履歴をクリア</button>
         </div>
@@ -577,10 +577,10 @@
       <div class="chat-wrap">
         <div class="chat-messages" id="chatMessages"></div>
         <div class="chat-quick">
-          <button onclick="quickChat('今日のタスク一覧を教えて')"><i class="ti ti-list"></i> タスク一覧</button>
+          <button onclick="quickChat('タスク一覧を見せて')"><i class="ti ti-list"></i> タスク一覧</button>
           <button onclick="quickChat('今日のTODOを教えて')"><i class="ti ti-checkbox"></i> 今日のTODO</button>
-          <button onclick="quickChat('新しいタスクを追加したい')"><i class="ti ti-plus"></i> タスク追加</button>
-          <button onclick="quickChat('今日のスケジュールに追加して')"><i class="ti ti-calendar-plus"></i> スケジュール追加</button>
+          <button onclick="quickChat('今週の進捗を教えて')"><i class="ti ti-chart-bar"></i> 進捗確認</button>
+          <button onclick="quickChat('期限が近いタスクは？')"><i class="ti ti-alarm"></i> 期限確認</button>
         </div>
         <div class="chat-input-row">
           <input type="text" id="chatInput" placeholder="「明日までにレポートのタスクを追加して」など..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}">
@@ -1644,7 +1644,21 @@ let chatBusy    = false;
 function renderChatPage() {
   const el = document.getElementById('chatMessages');
   if (!el) return;
-  if (chatHistory.length === 0) appendChatBubble('ai', 'こんにちは！TaskFlowのAIアシスタントです。\n「明日10時にミーティングを追加して」「今週中にレポートのタスクを作って」のように話しかけてください。');
+  if (chatHistory.length === 0) {
+    const hour = new Date().getHours();
+    const greet = hour < 12 ? 'おはようございます' : hour < 18 ? 'こんにちは' : 'こんばんは';
+    const tasks = getTasks().filter(t => t.status !== 'done');
+    const todos = getTodos().filter(t => t.date === todayStr() && !t.done);
+    appendChatBubble('ai',
+      `${greet}！TaskFlowアシスタントです 👋\n\n` +
+      `📋 未完了タスク: ${tasks.length}件\n` +
+      `✅ 今日のTODO残り: ${todos.length}件\n\n` +
+      `話しかけてみてください。例：\n` +
+      `「レポートのタスクを明日期限で追加して」\n` +
+      `「数学の勉強をTODOに追加して」\n` +
+      `「タスク一覧を見せて」`
+    );
+  }
 }
 
 function clearChat() {
@@ -1660,191 +1674,367 @@ function quickChat(msg) {
   sendChat();
 }
 
-async function sendChat() {
+function sendChat() {
   if (chatBusy) return;
   const input   = document.getElementById('chatInput');
   const sendBtn = document.getElementById('chatSendBtn');
   const text    = input.value.trim();
   if (!text) return;
-
-  const apiKey = getSettings().apiKey;
-  if (!apiKey) {
-    appendChatBubble('ai', 'APIキーが設定されていません。\n設定ページの「AI設定」からAnthropicのAPIキーを入力してください。');
-    return;
-  }
-
   input.value = '';
   chatBusy = true;
   if (sendBtn) sendBtn.disabled = true;
-
   appendChatBubble('user', text);
-  chatHistory.push({ role: 'user', content: text });
-
+  chatHistory.push(text);
   const typingId = showTypingIndicator();
-  try {
-    await runChatLoop(apiKey);
-  } catch (e) {
-    appendChatBubble('ai', `エラーが発生しました。\n${e.message}`);
-  } finally {
-    removeTypingIndicator(typingId);
-    chatBusy = false;
-    if (sendBtn) sendBtn.disabled = false;
-    input.focus();
+  setTimeout(() => {
+    try {
+      const result = botProcess(text);
+      removeTypingIndicator(typingId);
+      appendChatBubble('ai', result.text);
+      if (result.action) result.action();
+    } catch(e) {
+      removeTypingIndicator(typingId);
+      appendChatBubble('ai', 'エラーが発生しました。もう一度試してください。');
+    } finally {
+      chatBusy = false;
+      if (sendBtn) sendBtn.disabled = false;
+      const inp = document.getElementById('chatInput');
+      if (inp) inp.focus();
+    }
+  }, 280 + Math.random() * 320);
+}
+
+// ─── Rule-based Bot ───────────────────────────────────────────────────────────
+
+function botNorm(text) {
+  return text.toLowerCase()
+    .replace(/[　\s]+/g, ' ')
+    .replace(/[！？。、．，・]/g, '')
+    .replace(/[ａ-ｚＡ-Ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+    .trim();
+}
+
+function botExtractDate(text) {
+  const today = new Date();
+  if (/今日/.test(text)) return todayStr();
+  if (/明後日|あさって/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+2); return d.toISOString().split('T')[0]; }
+  if (/明日/.test(text))           { const d=new Date(today); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; }
+  if (/来週/.test(text))           { const d=new Date(today); d.setDate(d.getDate()+7); return d.toISOString().split('T')[0]; }
+  if (/今週末|今週の?土曜/.test(text)) {
+    const d=new Date(today); d.setDate(d.getDate()+(6-d.getDay()||7)); return d.toISOString().split('T')[0];
   }
+  const m1 = text.match(/(\d{1,2})月(\d{1,2})日/);
+  if (m1) { const d=new Date(today.getFullYear(),parseInt(m1[1])-1,parseInt(m1[2])); return d.toISOString().split('T')[0]; }
+  const m2 = text.match(/(\d{1,2})\/(\d{1,2})/);
+  if (m2) { const d=new Date(today.getFullYear(),parseInt(m2[1])-1,parseInt(m2[2])); return d.toISOString().split('T')[0]; }
+  return null;
 }
 
-async function runChatLoop(apiKey) {
-  for (let turn = 0; turn < 5; turn++) {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: buildSystemPrompt(),
-        messages: chatHistory,
-        tools: getChatTools(),
-      }),
-    });
+// タスク名を文章から抽出
+function botExtractTaskName(text) {
+  return text
+    .replace(/(を|が|は|の)?(タスク|課題|仕事|やつ|もの|やること)(を|が|は|の)?/g, ' ')
+    .replace(/(今日|明日|明後日|来週|今週末).{0,4}(まで|期限|締め切り)(に|で)?/g, ' ')
+    .replace(/\d{1,2}月\d{1,2}日.{0,4}(まで|期限|締め切り)(に|で)?/g, ' ')
+    .replace(/\d{1,2}\/\d{1,2}.{0,4}(まで|期限|締め切り)(に|で)?/g, ' ')
+    .replace(/(追加|作成|作|登録|入力|入れ|新規)(して|する|しといて|ください|お願い|します)?/g, ' ')
+    .replace(/(を|に|が|は|で|から|まで)/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error?.message || `HTTPエラー ${res.status}`);
-    }
+// 曖昧マッチ：タスク名から部分一致で探す
+function botFindTask(keyword, candidates) {
+  if (!keyword) return null;
+  const kw = keyword.trim();
+  let match = candidates.find(t => t.name === kw);
+  if (match) return match;
+  match = candidates.find(t => t.name.includes(kw) || kw.includes(t.name));
+  if (match) return match;
+  // 単語単位で部分一致
+  const words = kw.split(/[\s　]/);
+  return candidates.find(t =>
+    words.some(w => w.length >= 2 && (t.name.includes(w) || w.includes(t.name)))
+  ) || null;
+}
 
-    const data = await res.json();
-    chatHistory.push({ role: 'assistant', content: data.content });
+function botProcess(text) {
+  const n = botNorm(text);
 
-    // テキストを表示
-    const textParts = data.content.filter(c => c.type === 'text');
-    if (textParts.length > 0) appendChatBubble('ai', textParts.map(c => c.text).join(''));
-
-    const toolUses = data.content.filter(c => c.type === 'tool_use');
-    if (toolUses.length === 0 || data.stop_reason !== 'tool_use') break;
-
-    // ツール実行
-    const toolResults = toolUses.map(tu => {
-      const result = execChatTool(tu.name, tu.input);
-      return { type: 'tool_result', tool_use_id: tu.id, content: JSON.stringify(result) };
-    });
-    chatHistory.push({ role: 'user', content: toolResults });
-
-    // データが変わったのでUIを更新
-    if (currentPage !== 'chat') renderPage(currentPage);
-    else { renderDashboard(); }  // バックグラウンドで数値更新
+  // ── あいさつ ─────────────────────────────────────────────────────────────────
+  if (/^(こんにちは|おはよ|こんばんは|やあ|ども|よろしく|hello|hi|hey|ありがとう|ありがと|さんきゅ|たすかる)/.test(n)) {
+    const hour = new Date().getHours();
+    const g = hour < 12 ? 'おはようございます！' : hour < 18 ? 'こんにちは！' : 'こんばんは！';
+    if (/ありがと|たすかる|さんきゅ/.test(n)) return { text: 'どういたしまして！他に何かあれば気軽に話しかけてください 😊' };
+    return { text: `${g} 何かお手伝いしましょうか？\n「タスク一覧を見せて」や「〇〇をTODOに追加して」など話しかけてください。` };
   }
-}
 
-function buildSystemPrompt() {
-  const groups = getGroups().map(g => `${g.id}(${g.name})`).join(', ') || 'なし';
-  const cats   = getCategories().map(c => `${c.value}(${c.label})`).join(', ');
-  return `あなたはTaskFlowのAIアシスタントです。ユーザーの日本語の指示からタスク・TODO・スケジュールを管理します。
-今日の日付: ${todayStr()}
-利用可能なグループ: ${groups}
-利用可能なカテゴリ: ${cats}
-
-ルール:
-- 「明日」「来週月曜」などの相対日付は今日の日付を基準に YYYY-MM-DD に変換してください
-- 複数アイテムを一度に作成可能です
-- 作成・変更後は内容を簡潔に日本語で報告してください
-- list_tasks/list_todos でデータを確認してからユーザーに報告できます`;
-}
-
-function getChatTools() {
-  return [
-    {
-      name: 'create_task',
-      description: 'タスクを作成する',
-      input_schema: {
-        type: 'object',
-        properties: {
-          name:     { type: 'string',  description: 'タスク名（必須）' },
-          deadline: { type: 'string',  description: '期限 YYYY-MM-DD' },
-          group_id: { type: 'string',  description: 'グループID' },
-          tag:      { type: 'string',  description: 'カテゴリのvalue' },
-          status:   { type: 'string',  enum: ['todo','progress','done'] },
-          memo:     { type: 'string',  description: 'メモ・補足' },
-        },
-        required: ['name'],
-      },
-    },
-    {
-      name: 'create_todo',
-      description: '今日のTODOリストにアイテムを追加する',
-      input_schema: {
-        type: 'object',
-        properties: { text: { type: 'string', description: 'TODOの内容（必須）' } },
-        required: ['text'],
-      },
-    },
-    {
-      name: 'create_schedule',
-      description: 'スケジュール（カレンダーイベント）を追加する',
-      input_schema: {
-        type: 'object',
-        properties: {
-          title:      { type: 'string', description: 'イベントのタイトル（必須）' },
-          date:       { type: 'string', description: '日付 YYYY-MM-DD（必須）' },
-          start_time: { type: 'string', description: '開始時刻 HH:MM（必須）' },
-          duration:   { type: 'number', description: '所要時間（分）、デフォルト60' },
-        },
-        required: ['title', 'date', 'start_time'],
-      },
-    },
-    {
-      name: 'list_tasks',
-      description: '現在登録されているタスク一覧を取得する',
-      input_schema: { type: 'object', properties: {} },
-    },
-    {
-      name: 'list_todos',
-      description: '今日のTODOリストを取得する',
-      input_schema: { type: 'object', properties: {} },
-    },
-  ];
-}
-
-function execChatTool(name, input) {
-  switch (name) {
-    case 'create_task': {
-      const task = {
-        id: uid(), createdAt: todayStr(),
-        name:     input.name,
-        group:    input.group_id || null,
-        tag:      input.tag || (getCategories()[0]?.value || 'other'),
-        status:   input.status || 'todo',
-        progress: input.status === 'done' ? 100 : 0,
-        deadline: input.deadline || null,
-        memo:     input.memo || null,
-      };
-      setTasks([...getTasks(), task]);
-      toast(`タスク「${task.name}」を追加しました`);
-      return { success: true, created: task.name };
-    }
-    case 'create_todo': {
-      const todo = { id: uid(), text: input.text, done: false, date: todayStr() };
-      setTodos([...getTodos(), todo]);
-      toast(`TODO「${todo.text}」を追加しました`);
-      return { success: true, created: todo.text };
-    }
-    case 'create_schedule': {
-      const ev = { id: uid(), title: input.title, startTime: input.start_time, duration: input.duration || 60, date: input.date };
-      setSched([...getSched(), ev]);
-      toast(`スケジュール「${ev.title}」を追加しました`);
-      return { success: true, created: ev.title };
-    }
-    case 'list_tasks':
-      return getTasks().map(t => ({ name: t.name, status: t.status, deadline: t.deadline, group: t.group }));
-    case 'list_todos':
-      return getTodos().filter(t => t.date === todayStr()).map(t => ({ text: t.text, done: t.done }));
-    default:
-      return { error: 'Unknown tool: ' + name };
+  // ── ヘルプ ───────────────────────────────────────────────────────────────────
+  if (/(ヘルプ|help|使い方|何ができ|できること|機能|コマンド|操作)/.test(n)) {
+    return { text:
+      '📖 できることの一覧:\n\n' +
+      '📋 タスク\n' +
+      '「タスク一覧を見せて」\n' +
+      '「レポートのタスクを明日期限で追加して」\n' +
+      '「レポートを完了にして」\n' +
+      '「レポートを削除して」\n\n' +
+      '✅ TODO\n' +
+      '「今日のTODOを教えて」\n' +
+      '「数学の勉強をTODOに追加して」\n' +
+      '「数学をTODO完了にして」\n\n' +
+      '📊 確認\n' +
+      '「今週の進捗を教えて」\n' +
+      '「期限が近いタスクは？」\n' +
+      '「今日のスケジュールを見せて」\n\n' +
+      '📅 スケジュール\n' +
+      '「10時から数学の勉強をスケジュールに追加して」'
+    };
   }
+
+  // ── 完了にする (タスク) ───────────────────────────────────────────────────────
+  if (/(完了|終わ(った|らせ|らした)|できた|済(ませ|んだ)|仕上げた|done)/.test(n) &&
+      !/(todo|やること)/.test(n) &&
+      /(タスク|task)/.test(n) || (/(完了|終わ(った|らせ)|できた|済(ませ|んだ))/.test(n) && /(タスク)/.test(n))) {
+    return botCompleteTask(text, n);
+  }
+  // 「〇〇終わった」のような短縮形（タスク・todo不問）
+  if (/^.{1,25}(完了|終わ(った|らせた)|できた|済んだ)$/.test(n) &&
+      !/(todo|やること|追加|一覧|見せ|教え|スケジュール)/.test(n)) {
+    return botCompleteTask(text, n);
+  }
+
+  // ── TODO完了 ─────────────────────────────────────────────────────────────────
+  if (/(todo|やること).*(完了|終わ|できた|済ませ)|(完了|終わ|できた|済ませ).*(todo|やること)/.test(n)) {
+    return botCompleteTodo(text, n);
+  }
+
+  // ── タスク削除 ───────────────────────────────────────────────────────────────
+  if (/(削除|消(して|す)|なくして|remove|delete)/.test(n) && /(タスク|task)/.test(n)) {
+    return botDeleteTask(text, n);
+  }
+
+  // ── タスク追加 ───────────────────────────────────────────────────────────────
+  if ((/(タスク|課題|仕事).*(追加|作|登録|入れ|作成|新規)/.test(n) ||
+       /(追加|作|登録|入れ|作成).*(タスク|課題|仕事)/.test(n)) &&
+      !/(一覧|見せ|教え|確認|ある|は？)/.test(n)) {
+    return botAddTask(text, n);
+  }
+
+  // ── TODO追加 ─────────────────────────────────────────────────────────────────
+  if ((/(todo|やること).*(追加|入れ|作|登録)/.test(n) ||
+       /(追加|入れ|作|登録).*(todo|やること)/.test(n)) &&
+      !/(一覧|見せ|教え|確認)/.test(n)) {
+    return botAddTodo(text, n);
+  }
+
+  // ── スケジュール追加 ─────────────────────────────────────────────────────────
+  if ((/(スケジュール|予定).*(追加|入れ|作|登録)/.test(n) ||
+       /(追加|入れ|作|登録).*(スケジュール|予定)/.test(n) ||
+       /\d{1,2}時(間|.*から)/.test(n)) &&
+      !/(一覧|見せ|教え|確認)/.test(n)) {
+    return botAddSchedule(text, n);
+  }
+
+  // ── タスク一覧 ───────────────────────────────────────────────────────────────
+  if (/(タスク|task).*(一覧|リスト|見せ|教え|確認|ある|は|何)/.test(n) ||
+      /(一覧|見せ|教え|確認).*(タスク|task)/.test(n) ||
+      n === 'タスク' || n === 'タスク一覧') {
+    return botListTasks(n);
+  }
+
+  // ── TODO一覧 ─────────────────────────────────────────────────────────────────
+  if (/(todo|やること).*(一覧|見せ|教え|確認|ある|は|何)/.test(n) ||
+      /(一覧|見せ|教え|確認).*(todo|やること)/.test(n) ||
+      n === 'todo' || n === 'やること') {
+    return botListTodos();
+  }
+
+  // ── スケジュール確認 ─────────────────────────────────────────────────────────
+  if (/(スケジュール|予定).*(一覧|見せ|教え|確認|ある|は|今日)/.test(n) ||
+      /今日.*(スケジュール|予定)/.test(n)) {
+    return botListSchedule();
+  }
+
+  // ── 進捗 ─────────────────────────────────────────────────────────────────────
+  if (/(進捗|達成率|完了率|今週|どのくらい完了|どれだけ|成果|実績|状況|サマリ)/.test(n)) {
+    return botProgress();
+  }
+
+  // ── 期限確認 ─────────────────────────────────────────────────────────────────
+  if (/(期限|締め切り|締切|デッドライン|急ぎ|緊急|期日|近い|迫って|やばい)/.test(n) &&
+      !/(追加|入れ|作|登録)/.test(n)) {
+    return botDeadlines();
+  }
+
+  return botFallback(n);
+}
+
+// ── 応答関数群 ────────────────────────────────────────────────────────────────
+
+function botListTasks(n) {
+  const tasks = getTasks();
+  const showDone = /(完了|done)/.test(n) && !/(未完了|残り)/.test(n);
+  const list = showDone ? tasks.filter(t => t.status==='done') : tasks.filter(t => t.status!=='done');
+  if (list.length === 0) return { text: showDone ? '完了済みタスクはありません。' : '未完了のタスクはありません。全部完了しています 🎉' };
+  const tStr = todayStr();
+  const lines = list.slice(0, 12).map((t, i) => {
+    let s = `${i+1}. ${t.name}`;
+    if (t.deadline) {
+      const diff = Math.ceil((new Date(t.deadline) - new Date(tStr)) / 86400000);
+      s += diff < 0 ? ` ⚠️${Math.abs(diff)}日超過` : diff===0 ? ' 📌今日まで' : diff<=3 ? ` ⏰${diff}日後` : ` (${t.deadline})`;
+    }
+    if (t.status==='progress') s += ' 🔄';
+    return s;
+  });
+  return { text: `${showDone?'完了済み':'未完了'}タスク（${list.length}件）:\n\n${lines.join('\n')}${list.length>12?'\n…(以降省略)':''}` };
+}
+
+function botListTodos() {
+  const todos = getTodos().filter(t => t.date === todayStr());
+  if (todos.length === 0) return { text: '今日のTODOはまだありません。\n「〇〇をTODOに追加して」で追加できます。' };
+  const undone = todos.filter(t => !t.done), done = todos.filter(t => t.done);
+  let text = `今日のTODO（${done.length}/${todos.length}件完了）:\n\n`;
+  if (undone.length > 0) text += '未完了:\n' + undone.map((t,i) => `${i+1}. ${t.text}`).join('\n');
+  if (done.length > 0) text += (undone.length?'\n\n':'') + '完了済み:\n' + done.map(t => `✅ ${t.text}`).join('\n');
+  return { text };
+}
+
+function botListSchedule() {
+  const tStr = todayStr();
+  const evs = getSched().filter(e => e.date === tStr).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+  if (evs.length === 0) return { text: '今日のスケジュールはありません。\n「10時から〇〇をスケジュールに追加して」で追加できます。' };
+  return { text: `今日のスケジュール（${evs.length}件）:\n\n` + evs.map(e => `⏰ ${e.startTime} ${e.title}（${e.duration}分）`).join('\n') };
+}
+
+function botProgress() {
+  const tasks = getTasks();
+  const total = tasks.length, done = tasks.filter(t=>t.status==='done').length;
+  const inProg = tasks.filter(t=>t.status==='progress').length;
+  const overdue = tasks.filter(t=>t.deadline&&t.deadline<todayStr()&&t.status!=='done').length;
+  const rate = total ? Math.round(done/total*100) : 0;
+  const todos = getTodos().filter(t=>t.date===todayStr());
+  const todoDone = todos.filter(t=>t.done).length;
+  const weekTotal = getWeekCounts().reduce((a,b)=>a+b,0);
+  let msg = `📊 現在の進捗\n\nタスク: ${done}/${total}件完了 (${rate}%)\n進行中: ${inProg}件\n`;
+  if (overdue > 0) msg += `⚠️ 期限超過: ${overdue}件\n`;
+  msg += `今日のTODO: ${todoDone}/${todos.length}件完了\n今週完了数: ${weekTotal}件\n\n`;
+  msg += rate>=80?'素晴らしい進捗です！🎉':rate>=50?'順調に進んでいます 👍':total===0?'タスクをまだ追加していません。':'一歩ずつ進めていきましょう 💪';
+  return { text: msg };
+}
+
+function botDeadlines() {
+  const tStr = todayStr();
+  const tasks = getTasks().filter(t=>t.deadline&&t.status!=='done').sort((a,b)=>a.deadline.localeCompare(b.deadline)).slice(0,8);
+  if (tasks.length === 0) return { text: '期限のあるタスクはありません。' };
+  const lines = tasks.map(t => {
+    const diff = Math.ceil((new Date(t.deadline)-new Date(tStr))/86400000);
+    const label = diff<0?`⚠️ ${Math.abs(diff)}日超過`:diff===0?'📌 今日まで':diff===1?'⏰ 明日まで':`⏰ あと${diff}日`;
+    return `${label}：${t.name}`;
+  });
+  return { text: `直近の期限:\n\n${lines.join('\n')}` };
+}
+
+function botCompleteTask(original, n) {
+  const cleaned = original
+    .replace(/(を|が|は)?(完了|終わ(った|らせた?|らした?)|できた|済(ませた?|んだ)|仕上げた|done)(にして|した?|です|ました)?/g, '')
+    .replace(/(タスク|task)/g, '')
+    .replace(/(して|ください|お願い)(します)?$/g, '')
+    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .trim();
+  if (!cleaned) return { text: '完了にするタスクを教えてください。\n例：「レポートを完了にして」' };
+  const candidates = getTasks().filter(t => t.status !== 'done');
+  const match = botFindTask(cleaned, candidates);
+  if (!match) return { text: `「${cleaned}」というタスクが見つかりませんでした。\n「タスク一覧を見せて」で名前を確認してみてください。` };
+  setTasks(getTasks().map(t => t.id===match.id ? {...t, status:'done', progress:100, completedAt:todayStr()} : t));
+  renderPage(currentPage);
+  return { text: `✅ 「${match.name}」を完了にしました！\n\nお疲れ様でした 🎉` };
+}
+
+function botCompleteTodo(original, n) {
+  const cleaned = original
+    .replace(/(todo|やること|を|が|は)?(完了|終わ(った|らせた?)|できた|済(ませた?|んだ))(にして|した?|です)?/gi, '')
+    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .trim();
+  if (!cleaned) return { text: '完了にするTODOを教えてください。\n例：「数学をTODO完了にして」' };
+  const candidates = getTodos().filter(t => t.date===todayStr() && !t.done);
+  const match = botFindTask(cleaned, candidates.map(t => ({...t, name:t.text})));
+  if (!match) return { text: `「${cleaned}」というTODOが見つかりませんでした。` };
+  setTodos(getTodos().map(t => t.id===match.id ? {...t, done:true} : t));
+  renderPage(currentPage);
+  return { text: `✅ 「${match.text||match.name}」を完了にしました！` };
+}
+
+function botDeleteTask(original, n) {
+  const cleaned = original
+    .replace(/(を|が|は)?(削除|消(して|す)|なくして|remove|delete)(して|ください|お願い)?/g, '')
+    .replace(/(タスク|task)/g, '')
+    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .trim();
+  if (!cleaned) return { text: '削除するタスクを教えてください。\n例：「レポートのタスクを削除して」' };
+  const match = botFindTask(cleaned, getTasks());
+  if (!match) return { text: `「${cleaned}」というタスクが見つかりませんでした。` };
+  setTasks(getTasks().filter(t => t.id !== match.id));
+  renderPage(currentPage);
+  return { text: `🗑️ 「${match.name}」を削除しました。` };
+}
+
+function botAddTask(original, n) {
+  const deadline = botExtractDate(original);
+  let name = botExtractTaskName(original);
+  if (!name || name.length < 2) return { text: 'タスク名を教えてください。\n例：「レポートのタスクを明日期限で追加して」' };
+  // グループ自動マッチ
+  const groups = getGroups();
+  const group = groups.find(g => name.includes(g.name))?.id || '';
+  const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
+  setTasks([...getTasks(), task]);
+  renderPage(currentPage);
+  let resp = `📋 タスク「${name}」を追加しました！`;
+  if (deadline) resp += `\n📅 期限: ${deadline}`;
+  if (group) resp += `\n📁 グループ: ${groups.find(g=>g.id===group)?.name}`;
+  return { text: resp };
+}
+
+function botAddTodo(original, n) {
+  let text = original
+    .replace(/(を|に|の)?(todo|やること)(を|に|の)?(追加|入れ|作|登録)(して|する|ください)?/gi, '')
+    .replace(/(追加|入れ)(して|する|ください)?/g, '')
+    .replace(/今日(の|は)?/g, '')
+    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .trim();
+  if (!text || text.length < 2) return { text: 'TODOの内容を教えてください。\n例：「数学の勉強をTODOに追加して」' };
+  setTodos([...getTodos(), { id:uid(), text, done:false, date:todayStr() }]);
+  renderPage(currentPage);
+  return { text: `✅ 「${text}」を今日のTODOに追加しました！` };
+}
+
+function botAddSchedule(original, n) {
+  const timeMatch = original.match(/(\d{1,2})時((\d{2})分)?/);
+  const startTime = timeMatch ? `${timeMatch[1].padStart(2,'0')}:${(timeMatch[3]||'00').padStart(2,'0')}` : '09:00';
+  const durMatch = original.match(/(\d+)(時間|分)/);
+  const duration = durMatch ? (durMatch[2]==='時間' ? parseInt(durMatch[1])*60 : parseInt(durMatch[1])) : 60;
+  const dateForSched = botExtractDate(original) || todayStr();
+  let title = original
+    .replace(/(を|に|の)?(スケジュール|予定)(を|に|の)?(追加|入れ|作|登録)(して|する|ください)?/g, '')
+    .replace(/(\d{1,2})時((\d{2})分)?から?/g, '')
+    .replace(/(\d+)(時間|分)/g, '')
+    .replace(/(今日|明日|明後日|来週).{0,3}(まで|から)?/g, '')
+    .replace(/(追加|入れ)(して|する|ください)?/g, '')
+    .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
+    .trim();
+  if (!title || title.length < 2) return { text: 'スケジュールのタイトルを教えてください。\n例：「10時から数学の勉強をスケジュールに追加して」' };
+  setSched([...getSched(), { id:uid(), title, startTime, duration, date:dateForSched }]);
+  renderPage(currentPage);
+  return { text: `📅 「${title}」を${dateForSched} ${startTime}〜 (${duration}分) でスケジュールに追加しました！` };
+}
+
+function botFallback(n) {
+  const hints = [];
+  if (/(タスク|task|課題|仕事)/.test(n)) hints.push('「タスク一覧を見せて」「〇〇のタスクを追加して」「〇〇を完了にして」');
+  if (/(todo|やること)/.test(n))          hints.push('「今日のTODOを教えて」「〇〇をTODOに追加して」');
+  if (/(スケジュール|予定|時)/.test(n))   hints.push('「10時から〇〇をスケジュールに追加して」');
+  if (/(進捗|達成|完了|状況)/.test(n))    hints.push('「今週の進捗を教えて」「期限が近いタスクは？」');
+  if (hints.length > 0) return { text: `うまく理解できませんでした 🤔\n\nこんな言い方はいかがですか？\n${hints.join('\n')}` };
+  return { text: 'すみません、その内容は理解できませんでした 🤔\n「ヘルプ」と送るとできることの一覧が見れます！' };
 }
 
 function appendChatBubble(role, text) {
