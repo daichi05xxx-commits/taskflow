@@ -1808,6 +1808,8 @@ function cancelItemModal(modalId) {
 // ─── AI Chat ──────────────────────────────────────────────────────────────────
 let chatHistory = [];
 let chatBusy    = false;
+// 確認返しの会話状態：意図は取れたがスロット欠落時、次の入力を回答として待つ
+let _pendingIntent = null;
 
 function renderChatPage() {
   const el = document.getElementById('chatMessages');
@@ -2000,8 +2002,93 @@ function botFindTask(keyword, candidates) {
   ) || null;
 }
 
+// タスク生成の共通処理（通常追加・確認返し回答の両方から呼ぶ）
+function _botCreateTask(name, deadline) {
+  const groups = getGroups();
+  const group = groups.find(g => name.includes(g.name))?.id || '';
+  const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
+  setTasks([...getTasks(), task]);
+  renderPage(currentPage);
+  let resp = `📋 タスク「${name}」を追加しました！`;
+  if (deadline) resp += `\n📅 期限: ${deadline}`;
+  if (group) resp += `\n📁 グループ: ${groups.find(g=>g.id===group)?.name}`;
+  return { text: resp };
+}
+
+// 確認返しの最中、回答ではなく別コマンドを打ったと判断するための判定
+function botLooksLikeNewCommand(n) {
+  return /^(タスク一覧|一覧|todo|やること|進捗|ヘルプ|help|スケジュール一覧)$/.test(n) ||
+         /(一覧.*見せ|タスク.*見せて|todo.*見せ|進捗.*教え|ヘルプ|今日やること)/.test(n);
+}
+
+// pending（聞き返し中）の回答を処理。回答として処理できれば結果を、
+// 別コマンドらしければ null を返す（呼び出し側でpending破棄→通常処理）。
+function botHandlePending(original, n) {
+  const pi = _pendingIntent;
+  // 明示キャンセル
+  if (/^(やめ|キャンセル|なし|いいえ|いや|やっぱ|結構|中止)/.test(n)) {
+    _pendingIntent = null;
+    return { text: 'キャンセルしました。また必要になったら声をかけてください。' };
+  }
+  // 別コマンドらしい入力 → pendingを捨てて通常処理に委ねる
+  if (botLooksLikeNewCommand(n)) return null;
+
+  const clean = original.replace(/^[\s　]+|[\s　、,，。]+$/g, '').trim();
+
+  switch (pi.kind) {
+    case 'task_name': {
+      if (!clean || clean.length < 1) return { text: 'タスク名を入力してください。（「やめる」で中止）' };
+      _pendingIntent = null;
+      return _botCreateTask(clean, pi.deadline || botExtractDate(original));
+    }
+    case 'todo_text': {
+      if (!clean || clean.length < 1) return { text: 'TODOの内容を入力してください。（「やめる」で中止）' };
+      _pendingIntent = null;
+      setTodos([...getTodos(), { id:uid(), text:clean, done:false, date:todayStr() }]);
+      renderPage(currentPage);
+      return { text: `✅ 「${clean}」を今日のTODOに追加しました！` };
+    }
+    case 'sched_title': {
+      if (!clean || clean.length < 1) return { text: 'スケジュールのタイトルを入力してください。（「やめる」で中止）' };
+      _pendingIntent = null;
+      setSched([...getSched(), { id:uid(), title:clean, startTime:pi.startTime, duration:pi.duration, date:pi.date }]);
+      renderPage(currentPage);
+      return { text: `📅 「${clean}」を${pi.date} ${pi.startTime}〜 (${pi.duration}分) でスケジュールに追加しました！` };
+    }
+    case 'deadline_date': {
+      const newDate = botExtractDate(original);
+      if (!newDate) return { text: `期限が読み取れませんでした。「来週金曜」「6月20日」のように入力してください。（「やめる」で中止）` };
+      const match = getTasks().find(t => t.id === pi.taskId);
+      if (!match) { _pendingIntent = null; return { text: 'タスクが見つかりませんでした。' }; }
+      _pendingIntent = null;
+      setTasks(getTasks().map(t => t.id===pi.taskId ? {...t, deadline:newDate} : t));
+      renderPage(currentPage);
+      return { text: `📅 「${match.name}」の期限を ${newDate} に変更しました！` };
+    }
+    case 'complete_name': {
+      if (!clean || clean.length < 1) return { text: '完了にするタスク名を入力してください。（「やめる」で中止）' };
+      const match = botFindTask(clean, getTasks().filter(t => t.status !== 'done'));
+      if (!match) return { text: `「${clean}」というタスクが見つかりませんでした。もう一度入力してください。（「やめる」で中止）` };
+      _pendingIntent = null;
+      setTasks(getTasks().map(t => t.id===match.id ? {...t, status:'done', progress:100, completedAt:todayStr()} : t));
+      renderPage(currentPage);
+      return { text: `✅ 「${match.name}」を完了にしました！\n\nお疲れ様でした 🎉` };
+    }
+    default:
+      _pendingIntent = null;
+      return null;
+  }
+}
+
 function botProcess(text) {
   const n = botNorm(text);
+
+  // ── 確認返し：未完の意図がある場合、今回の入力を回答とみなす ──────────────────
+  if (_pendingIntent) {
+    const handled = botHandlePending(text, n);
+    if (handled) return handled;        // 回答として処理できた／聞き返し継続
+    _pendingIntent = null;              // 別コマンドらしい → pendingを破棄して通常処理へ
+  }
 
   // ── あいさつ ─────────────────────────────────────────────────────────────────
   if (/^(こんにちは|おはよ|こんばんは|やあ|ども|よろしく|hello|hi|hey|ありがとう|ありがと|さんきゅ|たすかる)/.test(n)) {
@@ -2353,7 +2440,10 @@ function botCompleteTask(original, n) {
     .replace(/(して|ください|お願い)(します)?$/g, '')
     .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
     .trim();
-  if (!cleaned) return { text: '完了にするタスクを教えてください。\n例：「レポートを完了にして」「数学おわ」' };
+  if (!cleaned) {
+    _pendingIntent = { kind:'complete_name' };
+    return { text: 'どのタスクを完了にしますか？\nタスク名を入力してください。（「やめる」で中止）' };
+  }
   const candidates = getTasks().filter(t => t.status !== 'done');
   const match = botFindTask(cleaned, candidates);
   if (!match) return { text: `「${cleaned}」というタスクが見つかりませんでした。\n「タスク一覧を見せて」で名前を確認してみてください。` };
@@ -2409,16 +2499,11 @@ function botDeleteSchedule(original, n) {
 function botAddTask(original, n) {
   const deadline = botExtractDate(original);
   let name = botExtractTaskName(original);
-  if (!name || name.length < 2) return { text: 'タスク名を教えてください。\n例：「レポートのタスクを明日期限で追加して」' };
-  const groups = getGroups();
-  const group = groups.find(g => name.includes(g.name))?.id || '';
-  const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
-  setTasks([...getTasks(), task]);
-  renderPage(currentPage);
-  let resp = `📋 タスク「${name}」を追加しました！`;
-  if (deadline) resp += `\n📅 期限: ${deadline}`;
-  if (group) resp += `\n📁 グループ: ${groups.find(g=>g.id===group)?.name}`;
-  return { text: resp };
+  if (!name || name.length < 2) {
+    _pendingIntent = { kind:'task_name', deadline };
+    return { text: '何というタスクを追加しますか？\nタスク名を入力してください。（「やめる」で中止）' };
+  }
+  return _botCreateTask(name, deadline);
 }
 
 function botAddTaskColloquial(original, n) {
@@ -2430,16 +2515,12 @@ function botAddTaskColloquial(original, n) {
   if (m1) name = m1[1].replace(/(の|を|が|は|、|,)+$/, '').trim();
   else if (m2) name = m2[1].replace(/(の|を|が|は|、|,)+$/, '').trim();
   else if (m3) name = m3[1].replace(/(の|も|を|が|は|、|,)+$/, '').trim();
-  if (!name || name.length < 2) return { text: 'タスク名を教えてください。\n例：「レポートやらないと」「数学の課題忘れないようにして」' };
-  name = name.replace(/^(今日|明日|来週).{0,3}(まで|期限)?/, '').trim();
-  const groups = getGroups();
-  const group = groups.find(g => name.includes(g.name))?.id || '';
-  const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
-  setTasks([...getTasks(), task]);
-  renderPage(currentPage);
-  let resp = `📋 「${name}」をタスクに追加しました！`;
-  if (deadline) resp += `\n📅 期限: ${deadline}`;
-  return { text: resp };
+  if (name) name = name.replace(/^(今日|明日|来週).{0,3}(まで|期限)?/, '').trim();
+  if (!name || name.length < 2) {
+    _pendingIntent = { kind:'task_name', deadline };
+    return { text: '何というタスクを追加しますか？\nタスク名を入力してください。（「やめる」で中止）' };
+  }
+  return _botCreateTask(name, deadline);
 }
 
 function botAddTaskFromDeadline(original, n) {
@@ -2452,15 +2533,11 @@ function botAddTaskFromDeadline(original, n) {
     .replace(/(ね|よ|だよ|でしょ|じゃん|まで|期限|締め切り)$/, '')
     .replace(/[、,，。\s]+$/, '').replace(/^[、,，。\s]+/, '')
     .trim();
-  if (!name || name.length < 2) return { text: 'タスク名を教えてください。\n例：「英語のプレゼン、来週月曜ね」' };
-  const groups = getGroups();
-  const group = groups.find(g => name.includes(g.name))?.id || '';
-  const task = { id:uid(), name, group, tag:'', status:'todo', progress:0, deadline:deadline||'', memo:'', createdAt:todayStr() };
-  setTasks([...getTasks(), task]);
-  renderPage(currentPage);
-  let resp = `📋 「${name}」をタスクに追加しました！`;
-  if (deadline) resp += `\n📅 期限: ${deadline}`;
-  return { text: resp };
+  if (!name || name.length < 2) {
+    _pendingIntent = { kind:'task_name', deadline };
+    return { text: '何というタスクを追加しますか？\nタスク名を入力してください。（「やめる」で中止）' };
+  }
+  return _botCreateTask(name, deadline);
 }
 
 function botAddTodo(original, n) {
@@ -2470,7 +2547,10 @@ function botAddTodo(original, n) {
     .replace(/今日(の|は)?/g, '')
     .replace(/^(の|を|が|は|\s)+|(\s|の|を|が|は)+$/g, '')
     .trim();
-  if (!text || text.length < 2) return { text: 'TODOの内容を教えてください。\n例：「数学の勉強をTODOに追加して」' };
+  if (!text || text.length < 2) {
+    _pendingIntent = { kind:'todo_text' };
+    return { text: '何をTODOに追加しますか？\n内容を入力してください。（「やめる」で中止）' };
+  }
   setTodos([...getTodos(), { id:uid(), text, done:false, date:todayStr() }]);
   renderPage(currentPage);
   return { text: `✅ 「${text}」を今日のTODOに追加しました！` };
@@ -2529,7 +2609,10 @@ function botAddSchedule(original, n) {
       .replace(/[、,，。\s]+/g, ' ')
       .replace(/^(の|を|が|は|に|と|で|\s)+|(\s|の|を|が|は|に|と|で)+$/g, '')
       .trim();
-    if (!title || title.length < 2) return { text: 'タスク名を教えてください。\n例：「カレンダーの6月20日にWINGビジコン」' };
+    if (!title || title.length < 2) {
+      _pendingIntent = { kind:'task_name', deadline };
+      return { text: `何を${deadline}のカレンダーに追加しますか？\n名前を入力してください。（「やめる」で中止）` };
+    }
     const groups = getGroups();
     const group = groups.find(g => title.includes(g.name))?.id || '';
     setTasks([...getTasks(), { id:uid(), name:title, group, tag:'', status:'todo', progress:0, deadline, memo:'', createdAt:todayStr() }]);
@@ -2554,7 +2637,10 @@ function botAddSchedule(original, n) {
     .replace(/[、,，。\s]+/g, ' ')
     .replace(/^(の|を|が|は|に|と|で|\s)+|(\s|の|を|が|は|に|と|で)+$/g, '')
     .trim();
-  if (!title || title.length < 2) return { text: 'スケジュールのタイトルを教えてください。\n例：「3限にゼミ入れて」「土曜の午後にバイト」' };
+  if (!title || title.length < 2) {
+    _pendingIntent = { kind:'sched_title', startTime, duration, date:dateForSched };
+    return { text: `${dateForSched} ${startTime}〜 に何の予定を入れますか？\nタイトルを入力してください。（「やめる」で中止）` };
+  }
   setSched([...getSched(), { id:uid(), title, startTime, duration, date:dateForSched }]);
   renderPage(currentPage);
   return { text: `📅 「${title}」を${dateForSched} ${startTime}〜 (${duration}分) でスケジュールに追加しました！` };
@@ -2577,11 +2663,14 @@ function botUpdateTask(original, n) {
 
 function botUpdateDeadline(original, n) {
   const newDate = botExtractDate(original);
-  if (!newDate) return { text: '新しい期限を教えてください。\n例：「レポートの期限を来週金曜に変えて」' };
   const taskPart = original.split(/(の?(期限|締め切り|締切))/)[0];
   const taskName = taskPart.replace(/(の|を|が|は|、|,|\s)+$/, '').trim();
   const match = botFindTask(taskName, getTasks().filter(t => t.status !== 'done'));
   if (!match) return { text: `「${taskName}」というタスクが見つかりませんでした。` };
+  if (!newDate) {
+    _pendingIntent = { kind:'deadline_date', taskId: match.id, taskName: match.name };
+    return { text: `「${match.name}」の新しい期限はいつにしますか？\n例：「来週金曜」「6月20日」（「やめる」で中止）` };
+  }
   setTasks(getTasks().map(t => t.id===match.id ? {...t, deadline:newDate} : t));
   renderPage(currentPage);
   return { text: `📅 「${match.name}」の期限を ${newDate} に変更しました！` };
@@ -2644,6 +2733,9 @@ function _botTestFixture() {
 // botProcess実行で起きた状態変化＋出力テキストから「実際に発火した意図」を逆算
 function _botDetectIntent(before, after, out) {
   const txt = out.text || '';
+  // 聞き返し中（pendingがセットされたまま）→ clarify
+  if (_pendingIntent) return 'clarify';
+  if (/キャンセルしました/.test(txt)) return 'cancel';
   const dTask  = after.tasks.length  - before.tasks.length;
   const dTodo  = after.todos.length  - before.todos.length;
   const dSched = after.sched.length  - before.sched.length;
@@ -2745,6 +2837,18 @@ const BOT_TESTS = [
   { g:'応用', in:'数学のレポートやっぱ金曜にして',    want:'update_deadline' },
   { g:'応用', in:'今溜まってる宿題どれ',              want:'list_tasks' },
   { g:'応用', in:'21日と22日と23日にテスト勉強',      want:'add_multi', tasks:3 },
+
+  // ── 確認返し（多ターン）：スロット欠落→聞き返し→回答で完了 ──
+  { g:'確認返し', turns:[ {in:'タスク追加して',                want:'clarify'}, {in:'数学のレポート', want:'add_task'} ] },
+  { g:'確認返し', turns:[ {in:'todoに追加して',                want:'clarify'}, {in:'買い出し',       want:'add_todo'} ] },
+  { g:'確認返し', turns:[ {in:'3限にスケジュール入れて',       want:'clarify'}, {in:'ゼミ',           want:'add_schedule'} ] },
+  { g:'確認返し', turns:[ {in:'完了にして',                    want:'clarify'}, {in:'英語のプレゼン', want:'complete_task'} ] },
+  { g:'確認返し', turns:[ {in:'英語のプレゼンの期限を変えて',  want:'clarify'}, {in:'来週金曜',       want:'update_deadline'} ] },
+  { g:'確認返し', turns:[ {in:'カレンダーの6月20日に追加して', want:'clarify'}, {in:'WINGビジコン',   want:'add_task', tasks:1} ] },
+  // キャンセル：聞き返し中に「やめる」で破棄
+  { g:'確認返し', turns:[ {in:'タスク追加して',                want:'clarify'}, {in:'やっぱりやめる', want:'cancel'} ] },
+  // 聞き返し中に別コマンド → pending破棄して通常処理
+  { g:'確認返し', turns:[ {in:'タスク追加して',                want:'clarify'}, {in:'タスク一覧',     want:'list_tasks'} ] },
 ];
 
 function runBotTests() {
@@ -2756,6 +2860,25 @@ function runBotTests() {
     for (const tc of BOT_TESTS) {
       const fx = _botTestFixture();
       dbSet(KEY_T, fx.tasks); dbSet(KEY_D, fx.todos); dbSet(KEY_S, fx.sched);
+      _pendingIntent = null;   // テスト間で会話状態をリセット
+
+      // ── 多ターン（確認返し）ケース ──
+      if (tc.turns) {
+        let pass = true; const notes = [];
+        for (const turn of tc.turns) {
+          const before = { tasks:getTasks(), todos:getTodos(), sched:getSched() };
+          let out, err = null;
+          try { out = botProcess(turn.in); } catch (e) { err = e; out = { text:'' }; }
+          const after = { tasks:getTasks(), todos:getTodos(), sched:getSched() };
+          const got = err ? 'ERROR' : _botDetectIntent(before, after, out);
+          if (got !== turn.want) { pass = false; notes.push(`"${turn.in}"→期待:${turn.want}/実際:${got}`); }
+          if (err) { pass = false; notes.push('例外: ' + err.message); }
+        }
+        results.push({ g:tc.g, in:tc.turns.map(t=>t.in).join(' → '), want:'(多ターン)', got: pass?'OK':'NG', pass, notes:notes.join(' / ') });
+        _pendingIntent = null;
+        continue;
+      }
+
       const before = { tasks:getTasks(), todos:getTodos(), sched:getSched() };
       let out, err = null;
       try { out = botProcess(tc.in); } catch (e) { err = e; out = { text:'' }; }
@@ -2778,6 +2901,7 @@ function runBotTests() {
     }
   } finally {
     dbSet(KEY_T, snap.t); dbSet(KEY_D, snap.d); dbSet(KEY_S, snap.s);
+    _pendingIntent = null;
     _botTestMode = false;
     renderPage(currentPage);
   }
