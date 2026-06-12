@@ -164,6 +164,7 @@
     .task-info .tname { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .task-info .tname.done { color: var(--text-secondary); text-decoration: line-through; }
     .task-info .tmeta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .task-memo { font-size: 11px; color: var(--text-secondary); margin-top: 4px; white-space: pre-wrap; word-break: break-word; background: var(--bg); border-radius: 4px; padding: 4px 8px; border-left: 2px solid var(--border); }
     .dl-badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; flex-shrink: 0; }
     .dl-badge.urgent { background: #fee2e2; color: var(--urgent-dark); }
     .dl-badge.soon   { background: var(--warning-bg); color: var(--warning-dark); }
@@ -238,7 +239,8 @@
     .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
     .form-group { margin-bottom: 16px; }
     .form-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; display: block; }
-    .form-input, .form-select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; outline: none; background: white; transition: border-color 0.1s; }
+    .form-input, .form-select { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 13px; outline: none; background: white; transition: border-color 0.1s; font-family: inherit; }
+    textarea.form-input { resize: vertical; min-height: 72px; line-height: 1.5; }
     .form-input:focus, .form-select:focus { border-color: var(--primary); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
@@ -531,6 +533,10 @@
     <div class="form-group">
       <label class="form-label">期限</label>
       <input type="date" id="taskDeadline" class="form-input">
+    </div>
+    <div class="form-group">
+      <label class="form-label">メモ</label>
+      <textarea id="taskMemo" class="form-input" rows="3" placeholder="自由にメモを記入..."></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('taskModal')">キャンセル</button>
@@ -1039,6 +1045,15 @@ function renderTasksPage() {
   const el = document.getElementById('taskListFull');
   if (!el) return;
 
+  // 期限が近い順にソート（期限なしは末尾）
+  const byDeadline = (a, b) => {
+    if (!a.deadline && !b.deadline) return 0;
+    if (!a.deadline) return 1;
+    if (!b.deadline) return -1;
+    return a.deadline.localeCompare(b.deadline);
+  };
+  tasks.sort(byDeadline);
+
   // ステータスフィルターが「完了」以外: アクティブ + 完了セクション分離
   const showDoneSection = currentFilter === 'all' || currentFilter === 'done';
   const activeTasks = showDoneSection ? tasks.filter(t => t.status !== 'done') : tasks;
@@ -1138,7 +1153,8 @@ function taskFullHtml(task, tStr) {
     <div class="task-check ${isDone?'checked':''}" onclick="event.stopPropagation();toggleDone('${task.id}',this)">${isDone?'✓':''}</div>
     <div class="task-info">
       <div class="tname ${isDone?'done':''}">${escHtml(task.name)}</div>
-      <div class="tmeta">${catLabel}${grpName?' · '+grpName:''} · 進捗 ${pct}%${task.deadline?' · 期限: '+task.deadline:''}</div>
+      <div class="tmeta">${catLabel}${grpName?' · '+grpName:''} · 進捗 ${pct}%${task.deadline?' · 期限: '+task.deadline:''}${task.memo?` · <i class="ti ti-notes" style="font-size:11px;vertical-align:middle;" title="${escHtml(task.memo)}"></i> メモあり`:''}</div>
+      ${task.memo && !isDone ? `<div class="task-memo">${escHtml(task.memo)}</div>` : ''}
     </div>
     <div class="dl-badge ${dlCls}">${dlLabel}</div>
     ${isDone
@@ -1190,6 +1206,7 @@ function openAddTask() {
   document.getElementById('taskProgress').value = 0;
   document.getElementById('progressLabel').textContent = '0';
   document.getElementById('taskDeadline').value = '';
+  document.getElementById('taskMemo').value     = '';
   populateGroupSelect(currentGroupFilter !== 'all' && currentGroupFilter !== 'none' ? currentGroupFilter : '');
   populateTagSelect();
   openModal('taskModal');
@@ -1205,6 +1222,7 @@ function openEditTask(id) {
   document.getElementById('taskProgress').value = t.progress || 0;
   document.getElementById('progressLabel').textContent = t.progress || 0;
   document.getElementById('taskDeadline').value = t.deadline || '';
+  document.getElementById('taskMemo').value     = t.memo || '';
   populateGroupSelect(t.group || '');
   populateTagSelect(t.tag);
   openModal('taskModal');
@@ -1220,6 +1238,7 @@ function saveTask() {
     status:   document.getElementById('taskStatus').value,
     progress: parseInt(document.getElementById('taskProgress').value),
     deadline: document.getElementById('taskDeadline').value || null,
+    memo:     document.getElementById('taskMemo').value.trim() || null,
   };
   const editId = document.getElementById('editTaskId').value;
   let tasks = getTasks();
@@ -1470,6 +1489,10 @@ document.addEventListener('DOMContentLoaded', () => {
   renderDashboard();
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
+  });
+  // 日付フィールドはボックスクリックでカレンダーを開く
+  document.addEventListener('click', e => {
+    if (e.target.type === 'date') { try { e.target.showPicker(); } catch(_) {} }
   });
 });
 </script>
