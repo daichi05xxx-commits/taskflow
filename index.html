@@ -788,6 +788,16 @@ create policy "own" on user_data for all
           </div>
           <button class="btn-ghost" onclick="runBotTests()">🧪 テスト実行</button>
         </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">AIチャットの学習辞書</div>
+            <div class="settings-sub" id="botDictInfo">理解できなかった言い回しを、あなたが教えた意図として記憶します</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-ghost" onclick="showBotDict()">📖 一覧</button>
+            <button class="btn-ghost" onclick="clearBotDict()">🗑️ クリア</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -928,7 +938,7 @@ create policy "own" on user_data for all
 
 <script>
 // ─── Storage ──────────────────────────────────────────────────────────────────
-const KEYS = { tasks:'tf_tasks', schedule:'tf_sched', settings:'tf_settings', todos:'tf_todos' };
+const KEYS = { tasks:'tf_tasks', schedule:'tf_sched', settings:'tf_settings', todos:'tf_todos', botdict:'tf_botdict' };
 const dbGet = (k, d=[]) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const dbSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
@@ -946,6 +956,8 @@ const getSettings = ()  => dbGet(KEYS.settings, {});
 const setSettings = (v) => { dbSet(KEYS.settings, v); scheduleSync(); };
 const getTodos    = ()  => dbGet(KEYS.todos);
 const setTodos    = (v) => { dbSet(KEYS.todos, v);    scheduleSync(); };
+const getBotDict  = ()  => dbGet(KEYS.botdict);                 // 訂正辞書（自己学習）
+const setBotDict  = (v) => { dbSet(KEYS.botdict, v);  scheduleSync(); };
 
 const uid      = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const fmtDate  = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1810,6 +1822,8 @@ let chatHistory = [];
 let chatBusy    = false;
 // 確認返しの会話状態：意図は取れたがスロット欠落時、次の入力を回答として待つ
 let _pendingIntent = null;
+// 訂正待ちの状態：理解できなかった直後、ユーザーが意図を番号で教えるのを待つ
+let _pendingCorrection = null;
 
 function renderChatPage() {
   const el = document.getElementById('chatMessages');
@@ -2105,6 +2119,98 @@ function botHandlePending(original, n) {
   }
 }
 
+// 意図名 → ハンドラへのルーティング（訂正辞書ヒット時に使う）
+function botRouteIntent(intent, original, n) {
+  switch (intent) {
+    case 'add_task':        return botAddTask(original, n);
+    case 'add_todo':        return botAddTodo(original, n);
+    case 'add_schedule':    return botAddSchedule(original, n);
+    case 'complete_task':   return botCompleteTask(original, n);
+    case 'delete_task':     return botDeleteTask(original, n);
+    case 'update_deadline': return botUpdateDeadline(original, n);
+    case 'check_task':      return botCheckTask(original, n);
+    case 'list_tasks':      return botListTasks(n);
+    case 'list_todos':      return botListTodos();
+    case 'list_schedule':   return botListSchedule();
+    case 'today_all':       return botTodayAll();
+    case 'progress':        return botProgress();
+    case 'deadlines':       return botDeadlines();
+    case 'week':            return botListThisWeek();
+    case 'tomorrow':        return botListTomorrow();
+    default:                return botFallback(n);
+  }
+}
+
+// 訂正辞書のメニュー（番号 → 意図）
+const BOT_CORRECTION_MENU = [
+  { no:'1', label:'タスクを追加',       intent:'add_task' },
+  { no:'2', label:'タスクを完了',       intent:'complete_task' },
+  { no:'3', label:'タスク一覧を見る',   intent:'list_tasks' },
+  { no:'4', label:'期限を変える',       intent:'update_deadline' },
+  { no:'5', label:'スケジュールを追加', intent:'add_schedule' },
+];
+
+// 失敗入力から「言い回しの骨格」を抽出（タスク名・日付など可変部分を除く）
+function botLearnPhrase(n) {
+  let p = ' ' + n + ' ';
+  const names = [
+    ...getTasks().map(t=>t.name),
+    ...getTodos().map(t=>t.text),
+    ...getSched().map(s=>s.title),
+  ];
+  // 既存アイテム名（固有部分）を除去
+  names.forEach(nm => {
+    if (nm && nm.length >= 2) p = p.split(nm.toLowerCase()).join(' ');
+  });
+  // 日付・時刻表現を除去
+  p = p.replace(/\d{1,2}月\d{1,2}日/g,' ')
+       .replace(/\d{1,2}時(\d{2}分)?/g,' ')
+       .replace(/\d{1,2}[\/:]\d{1,2}/g,' ')
+       .replace(/(今日|明日|明後日|明々後日|来週|今週|来月|今月|\d{1,2}日)/g,' ')
+       .replace(/[、,，。\s]+/g,' ').trim();
+  return p;
+}
+
+// 入力が学習済みの言い回しを含むか判定 → 意図を返す
+function botDictMatch(n) {
+  const dict = getBotDict();
+  // 長いphraseを優先（より具体的な学習を先に当てる）
+  const sorted = [...dict].sort((a,b)=>(b.phrase||'').length-(a.phrase||'').length);
+  for (const e of sorted) {
+    if (e.phrase && e.phrase.length >= 2 && n.includes(e.phrase)) return e.intent;
+  }
+  return null;
+}
+
+// 訂正待ち中の回答（番号）を処理。番号でなければ null（別コマンド扱い）。
+function botHandleCorrection(original, n) {
+  // 学習を見送る
+  if (/^(6|なし|いいえ|いや|やめ|無視|キャンセル|違う|どれでもない)/.test(n)) {
+    _pendingCorrection = null;
+    return { text: '了解です。学習は見送りました。' };
+  }
+  const pick = n.match(/^([1-5])$/);
+  if (!pick) return null;   // 番号以外 → pending破棄して通常処理へ
+  const item = BOT_CORRECTION_MENU.find(m => m.no === pick[1]);
+  const failed = _pendingCorrection;
+  _pendingCorrection = null;
+  if (!item || !failed) return botFallback(n);
+
+  // 言い回しを学習（汎化できる骨格が取れた時のみ）
+  const phrase = botLearnPhrase(failed.n);
+  let learnMsg = '';
+  if (phrase && phrase.length >= 2) {
+    const dict = getBotDict();
+    const ex = dict.find(e => e.phrase === phrase);
+    if (ex) ex.intent = item.intent; else dict.push({ phrase, intent:item.intent });
+    setBotDict(dict);
+    learnMsg = `\n\n🧠 「${phrase}」は今後「${item.label}」として扱います。`;
+  }
+  // 元の失敗入力で実際にアクションを実行
+  const res = botRouteIntent(item.intent, failed.original, failed.n);
+  return { text: res.text + learnMsg, action: res.action };
+}
+
 function botProcess(text) {
   const n = botNorm(text);
 
@@ -2113,6 +2219,13 @@ function botProcess(text) {
     const handled = botHandlePending(text, n);
     if (handled) return handled;        // 回答として処理できた／聞き返し継続
     _pendingIntent = null;              // 別コマンドらしい → pendingを破棄して通常処理へ
+  }
+
+  // ── 訂正待ち：理解できなかった直後の番号回答を意図として学習＋実行 ──────────────
+  if (_pendingCorrection) {
+    const handled = botHandleCorrection(text, n);
+    if (handled) return handled;
+    _pendingCorrection = null;          // 番号でない → 破棄して通常処理へ
   }
 
   // ── あいさつ ─────────────────────────────────────────────────────────────────
@@ -2302,7 +2415,13 @@ function botProcess(text) {
     return botDeadlines();
   }
 
-  return botFallback(n);
+  // ── 訂正辞書：通常ルールが拾えなかった入力を、学習済みの言い回しで救済 ──────────
+  const learned = botDictMatch(n);
+  if (learned) return botRouteIntent(learned, text, n);
+
+  // ── それでも理解できない → 学習を促す（番号で意図を教えてもらう） ───────────────
+  _pendingCorrection = { original:text, n };
+  return botFallback(n, true);
 }
 
 // ── 応答関数群 ────────────────────────────────────────────────────────────────
@@ -2738,14 +2857,20 @@ function botUpdateStatus(original, n) {
   return { text: `🔄 「${match.name}」を進行中に変更しました！` };
 }
 
-function botFallback(n) {
+function botFallback(n, learn) {
+  // learn=true のとき、番号で意図を教えてもらい学習する案内を付ける
+  const menu = learn
+    ? '\n\nもしよければ、これはどの操作か番号で教えてください（覚えます）:\n' +
+      BOT_CORRECTION_MENU.map(m => `${m.no}. ${m.label}`).join('\n') +
+      '\n6. どれでもない'
+    : '';
   const hints = [];
   if (/(タスク|task|課題|仕事)/.test(n)) hints.push('「タスク一覧を見せて」「〇〇やらないと」「〇〇おわ」「〇〇の期限を金曜に変えて」');
   if (/(todo|やること)/.test(n))          hints.push('「今日のTODOを教えて」「〇〇をTODOに追加して」');
   if (/(スケジュール|予定|時|限)/.test(n)) hints.push('「3限にゼミを追加して」「土曜の午後にバイト」「〇〇の予定キャンセルして」');
   if (/(進捗|達成|完了|状況)/.test(n))    hints.push('「今週の進捗を教えて」「今日やること全部教えて」');
-  if (hints.length > 0) return { text: `うまく理解できませんでした 🤔\n\nこんな言い方はいかがですか？\n${hints.join('\n')}` };
-  return { text: 'すみません、その内容は理解できませんでした 🤔\n「ヘルプ」と送るとできることの一覧が見れます！' };
+  if (hints.length > 0) return { text: `うまく理解できませんでした 🤔\n\nこんな言い方はいかがですか？\n${hints.join('\n')}${menu}` };
+  return { text: `すみません、その内容は理解できませんでした 🤔\n「ヘルプ」と送るとできることの一覧が見れます！${menu}` };
 }
 
 // ═══ Bot テスト基盤（回帰ネット） ═══════════════════════════════════════════════
@@ -2770,7 +2895,10 @@ function _botDetectIntent(before, after, out) {
   const txt = out.text || '';
   // 聞き返し中（pendingがセットされたまま）→ clarify
   if (_pendingIntent) return 'clarify';
+  // 訂正待ち中（番号で意図を教えてもらう案内）→ learn_prompt
+  if (_pendingCorrection) return 'learn_prompt';
   if (/キャンセルしました/.test(txt)) return 'cancel';
+  if (/学習は見送りました/.test(txt)) return 'learn_skip';
   const dTask  = after.tasks.length  - before.tasks.length;
   const dTodo  = after.todos.length  - before.todos.length;
   const dSched = after.sched.length  - before.sched.length;
@@ -2864,7 +2992,7 @@ const BOT_TESTS = [
   { g:'core', in:'こんにちは',                        want:'greeting' },
   { g:'core', in:'ありがとう',                        want:'greeting' },
   { g:'core', in:'ヘルプ',                            want:'help' },
-  { g:'core', in:'あいうえおかきくけこ12345',         want:'fallback' },
+  { g:'core', in:'あいうえおかきくけこ12345',         want:'learn_prompt' },
 
   // ── 応用：逸脱した言い回し（赤=現状の弱点。汎化の天井を可視化） ──
   { g:'応用', in:'そろそろレポート手をつけないとな',  want:'add_task' },
@@ -2887,18 +3015,84 @@ const BOT_TESTS = [
   { g:'確認返し', turns:[ {in:'タスク追加して',                want:'clarify'}, {in:'やっぱりやめる', want:'cancel'} ] },
   // 聞き返し中に別コマンド → pending破棄して通常処理
   { g:'確認返し', turns:[ {in:'タスク追加して',                want:'clarify'}, {in:'タスク一覧',     want:'list_tasks'} ] },
+
+  // ── 訂正辞書（自己学習）：失敗→番号で意図を教える→学習＆実行→別の固有名詞でも汎化 ──
+  { g:'訂正辞書', turns:[
+      {in:'数学のレポート、もう出した', want:'learn_prompt'},  // 理解できず学習を促す
+      {in:'2',                          want:'complete_task'},  // 「2=完了」を学習＋今回実行
+      {in:'英語のプレゼンもう出した',   want:'complete_task'},  // 「もう出した」を辞書ヒットで完了
+  ]},
+  { g:'訂正辞書', turns:[
+      {in:'今溜まってる宿題どれ',       want:'learn_prompt'},
+      {in:'3',                          want:'list_tasks'},     // 「3=一覧」を学習＋実行
+      {in:'今溜まってる宿題どれ',       want:'list_tasks'},     // 同じ言い回しが次は通る（永続）
+  ]},
+  // 学習を見送る（6/その他）
+  { g:'訂正辞書', turns:[
+      {in:'ふがふがほげほげ',           want:'learn_prompt'},
+      {in:'6',                          want:'learn_skip'},
+  ]},
 ];
 
+// 学習辞書の一覧表示
+const _INTENT_LABEL = {
+  add_task:'タスクを追加', complete_task:'タスクを完了', list_tasks:'タスク一覧を見る',
+  update_deadline:'期限を変える', add_schedule:'スケジュールを追加', add_todo:'TODOを追加',
+  delete_task:'タスクを削除', check_task:'タスクを確認', list_todos:'TODO一覧', list_schedule:'予定一覧',
+  today_all:'今日やること', progress:'進捗', deadlines:'期限', week:'今週', tomorrow:'明日',
+};
+function showBotDict() {
+  const dict = getBotDict();
+  let body;
+  if (!dict.length) {
+    body = '<div style="padding:20px;color:var(--text-secondary);text-align:center;">まだ何も学習していません。<br>チャットが理解できなかったとき、番号で意図を教えると覚えます。</div>';
+  } else {
+    body = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+      dict.map((e,i) => `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px 10px;">「${escHtml(e.phrase)}」</td>
+        <td style="padding:8px 10px;color:var(--text-secondary);">→ ${_INTENT_LABEL[e.intent]||e.intent}</td>
+        <td style="padding:8px 10px;text-align:right;"><button class="btn-ghost" style="font-size:12px;padding:2px 8px;" onclick="deleteBotDictEntry(${i})">削除</button></td>
+      </tr>`).join('') + '</table>';
+  }
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
+      <div style="background:var(--bg-card);border-radius:12px;width:560px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+          <div style="font-size:16px;font-weight:600;">📖 学習辞書（${dict.length}件）</div>
+          <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary);">×</button>
+        </div>
+        <div style="overflow:auto;">${body}</div>
+      </div>
+    </div>`;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstElementChild);
+}
+function deleteBotDictEntry(i) {
+  const dict = getBotDict();
+  dict.splice(i, 1);
+  setBotDict(dict);
+  document.querySelector('[style*=fixed]')?.remove();
+  showBotDict();
+}
+function clearBotDict() {
+  if (!getBotDict().length) { toast('学習辞書は空です'); return; }
+  if (!confirm('学習した言い回しをすべて削除しますか？')) return;
+  setBotDict([]);
+  toast('学習辞書をクリアしました');
+}
+
 function runBotTests() {
-  const KEY_T = KEYS.tasks, KEY_D = KEYS.todos, KEY_S = KEYS.schedule;
-  const snap = { t: dbGet(KEY_T), d: dbGet(KEY_D), s: dbGet(KEY_S) };
+  const KEY_T = KEYS.tasks, KEY_D = KEYS.todos, KEY_S = KEYS.schedule, KEY_DICT = KEYS.botdict;
+  const snap = { t: dbGet(KEY_T), d: dbGet(KEY_D), s: dbGet(KEY_S), dict: dbGet(KEY_DICT) };
   _botTestMode = true;
   const results = [];
   try {
     for (const tc of BOT_TESTS) {
       const fx = _botTestFixture();
       dbSet(KEY_T, fx.tasks); dbSet(KEY_D, fx.todos); dbSet(KEY_S, fx.sched);
-      _pendingIntent = null;   // テスト間で会話状態をリセット
+      dbSet(KEY_DICT, []);                       // テスト毎に学習辞書を空に
+      _pendingIntent = null; _pendingCorrection = null;   // テスト間で会話状態をリセット
 
       // ── 多ターン（確認返し）ケース ──
       if (tc.turns) {
@@ -2913,7 +3107,7 @@ function runBotTests() {
           if (err) { pass = false; notes.push('例外: ' + err.message); }
         }
         results.push({ g:tc.g, in:tc.turns.map(t=>t.in).join(' → '), want:'(多ターン)', got: pass?'OK':'NG', pass, notes:notes.join(' / ') });
-        _pendingIntent = null;
+        _pendingIntent = null; _pendingCorrection = null;
         continue;
       }
 
@@ -2947,8 +3141,8 @@ function runBotTests() {
       results.push({ g:tc.g, in:tc.in, want:tc.want, got, pass, notes:notes.join(' / ') });
     }
   } finally {
-    dbSet(KEY_T, snap.t); dbSet(KEY_D, snap.d); dbSet(KEY_S, snap.s);
-    _pendingIntent = null;
+    dbSet(KEY_T, snap.t); dbSet(KEY_D, snap.d); dbSet(KEY_S, snap.s); dbSet(KEY_DICT, snap.dict);
+    _pendingIntent = null; _pendingCorrection = null;
     _botTestMode = false;
     renderPage(currentPage);
   }
