@@ -216,6 +216,10 @@
     .day-detail-sub { font-size:12px; color:var(--text-secondary); margin-top:2px; }
     .day-detail-badge { font-size:11px; padding:1px 7px; border-radius:10px; margin-left:6px; }
     .day-detail-empty { text-align:center; color:var(--text-secondary); padding:24px 0; font-size:14px; }
+    .day-detail-edit { flex:1; cursor:pointer; min-width:0; }
+    .day-detail-edit:hover .day-detail-name { color:var(--primary); }
+    .day-detail-del { background:none; border:none; cursor:pointer; color:#cbd5e1; font-size:16px; padding:0 4px; line-height:1; flex-shrink:0; }
+    .day-detail-del:hover { color:#ef4444; }
 
     /* ── Settings ── */
     .settings-card { margin-bottom: 16px; }
@@ -835,7 +839,7 @@ create policy "own" on user_data for all
       <textarea id="taskMemo" class="form-input" rows="3" placeholder="自由にメモを記入..."></textarea>
     </div>
     <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal('taskModal')">キャンセル</button>
+      <button class="btn-ghost" onclick="cancelItemModal('taskModal')">キャンセル</button>
       <button class="btn-primary" onclick="saveTask()">保存</button>
     </div>
   </div>
@@ -844,7 +848,8 @@ create policy "own" on user_data for all
 <!-- ── Schedule Modal ── -->
 <div class="overlay" id="schedModal">
   <div class="modal">
-    <h3>スケジュールを追加</h3>
+    <h3 id="schedModalTitle">スケジュールを追加</h3>
+    <input type="hidden" id="editSchedId">
     <div class="form-group">
       <label class="form-label">タイトル *</label>
       <input type="text" id="schedTitle" class="form-input" placeholder="イベント名を入力...">
@@ -871,7 +876,7 @@ create policy "own" on user_data for all
       <input type="date" id="schedDate" class="form-input">
     </div>
     <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal('schedModal')">キャンセル</button>
+      <button class="btn-ghost" onclick="cancelItemModal('schedModal')">キャンセル</button>
       <button class="btn-primary" onclick="saveSchedule()">保存</button>
     </div>
   </div>
@@ -1571,24 +1576,54 @@ function saveTask() {
   setTasks(tasks);
   closeModal('taskModal');
   renderPage(currentPage);
+  if (_dayDetailDs) showDayDetail(_dayDetailDs);
 }
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
-function openAddSchedule() {
+function openAddSchedule(prefillDate) {
+  document.getElementById('schedModalTitle').textContent = 'スケジュールを追加';
+  document.getElementById('editSchedId').value   = '';
   document.getElementById('schedTitle').value    = '';
   document.getElementById('schedTime').value     = '09:00';
   document.getElementById('schedDuration').value = '60';
-  document.getElementById('schedDate').value     = todayStr();
+  document.getElementById('schedDate').value     = prefillDate || todayStr();
+  openModal('schedModal');
+}
+
+function openEditSchedule(id) {
+  const s = getSched().find(s => s.id === id);
+  if (!s) return;
+  document.getElementById('schedModalTitle').textContent = 'スケジュールを編集';
+  document.getElementById('editSchedId').value   = id;
+  document.getElementById('schedTitle').value    = s.title;
+  document.getElementById('schedTime').value     = s.startTime || '09:00';
+  document.getElementById('schedDuration').value = s.duration || 60;
+  document.getElementById('schedDate').value     = s.date || todayStr();
   openModal('schedModal');
 }
 
 function saveSchedule() {
   const title = document.getElementById('schedTitle').value.trim();
   if (!title) { alert('タイトルを入力してください'); return; }
-  setSched([...getSched(), { id:uid(), title, startTime:document.getElementById('schedTime').value, duration:parseInt(document.getElementById('schedDuration').value), date:document.getElementById('schedDate').value }]);
+  const data = {
+    title,
+    startTime: document.getElementById('schedTime').value,
+    duration:  parseInt(document.getElementById('schedDuration').value),
+    date:      document.getElementById('schedDate').value,
+  };
+  const editId = document.getElementById('editSchedId').value;
+  let scheds = getSched();
+  if (editId) {
+    scheds = scheds.map(s => s.id === editId ? { ...s, ...data } : s);
+    toast('スケジュールを更新しました');
+  } else {
+    scheds.push({ ...data, id: uid() });
+    toast('スケジュールを追加しました');
+  }
+  setSched(scheds);
   closeModal('schedModal');
-  renderScheduleTimeline();
-  toast('スケジュールを追加しました');
+  renderPage(currentPage);
+  if (_dayDetailDs) showDayDetail(_dayDetailDs);
 }
 
 function deleteSchedule(id) {
@@ -1673,7 +1708,10 @@ function calPrev()  { if (--calMonth<0)  { calMonth=11; calYear--; } renderCalen
 function calNext()  { if (++calMonth>11) { calMonth=0;  calYear++; } renderCalendar(); }
 function calToday() { const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); renderCalendar(); }
 
+let _dayDetailDs = null;
+
 function showDayDetail(ds) {
+  _dayDetailDs = ds;
   const [y, mo, d] = ds.split('-').map(Number);
   const dow = ['日','月','火','水','木','金','土'][new Date(y, mo-1, d).getDay()];
   document.getElementById('dayDetailTitle').textContent = `${mo}月${d}日（${dow}）`;
@@ -1688,10 +1726,11 @@ function showDayDetail(ds) {
     const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
     html += `<div class="day-detail-item">
       <div class="day-detail-dot sched"></div>
-      <div>
+      <div class="day-detail-edit" onclick="closeModal('dayDetailModal');openEditSchedule('${s.id}')">
         <div class="day-detail-name">⏰ ${escHtml(s.title)}</div>
         <div class="day-detail-sub">${s.startTime||'--:--'} 〜 ${endStr}（${s.duration||60}分）</div>
       </div>
+      <button class="day-detail-del" onclick="deleteDayItem('sched','${s.id}','${ds}')" title="削除">×</button>
     </div>`;
   });
 
@@ -1702,24 +1741,62 @@ function showDayDetail(ds) {
     const isUrgent = t.deadline < tStr && t.status !== 'done';
     html += `<div class="day-detail-item">
       <div class="day-detail-dot ${statusClass[t.status]||'task-todo'}"></div>
-      <div style="flex:1;">
+      <div class="day-detail-edit" onclick="closeModal('dayDetailModal');openEditTask('${t.id}')">
         <div class="day-detail-name">${escHtml(t.name)}${isUrgent?'<span class="day-detail-badge" style="background:#fee2e2;color:var(--urgent-dark);">期限超過</span>':''}</div>
         <div class="day-detail-sub">
           <span style="color:${statusColor[t.status]||'#94a3b8'}">${statusLabel[t.status]||'未着手'}</span>
           ${t.progress>0?` · 進捗 ${t.progress}%`:''}
         </div>
       </div>
+      <button class="day-detail-del" onclick="deleteDayItem('task','${t.id}','${ds}')" title="削除">×</button>
     </div>`;
   });
 
   if (!html) html = '<div class="day-detail-empty">この日の予定はありません</div>';
+  html += `<div style="display:flex;gap:8px;margin-top:14px;">
+    <button class="btn-ghost" style="flex:1;font-size:13px;" onclick="closeModal('dayDetailModal');openAddTaskWithDate('${ds}')">＋ タスク</button>
+    <button class="btn-ghost" style="flex:1;font-size:13px;" onclick="closeModal('dayDetailModal');openAddSchedule('${ds}')">＋ スケジュール</button>
+  </div>`;
+
   document.getElementById('dayDetailBody').innerHTML = html;
   openModal('dayDetailModal');
 }
 
+function deleteDayItem(type, id, ds) {
+  if (type === 'task') {
+    setTasks(getTasks().filter(t => t.id !== id));
+    toast('タスクを削除しました');
+  } else {
+    setSched(getSched().filter(s => s.id !== id));
+    toast('スケジュールを削除しました');
+  }
+  renderPage(currentPage);
+  showDayDetail(ds);
+}
+
+function openAddTaskWithDate(ds) {
+  document.getElementById('taskModalTitle').textContent = 'タスクを追加';
+  document.getElementById('editTaskId').value   = '';
+  document.getElementById('taskName').value     = '';
+  document.getElementById('taskStatus').value   = 'todo';
+  document.getElementById('taskProgress').value = 0;
+  document.getElementById('progressLabel').textContent = '0';
+  document.getElementById('taskDeadline').value = ds;
+  document.getElementById('taskMemo').value     = '';
+  populateGroupSelect('');
+  populateTagSelect();
+  openModal('taskModal');
+}
+
 function closeDayDetail(e) {
   if (e && e.target !== document.getElementById('dayDetailModal')) return;
+  _dayDetailDs = null;
   closeModal('dayDetailModal');
+}
+
+function cancelItemModal(modalId) {
+  closeModal(modalId);
+  if (_dayDetailDs) showDayDetail(_dayDetailDs);
 }
 
 // ─── AI Chat ──────────────────────────────────────────────────────────────────
