@@ -2784,8 +2784,9 @@ function botAddSchedule(original, n) {
     .replace(/(\d{1,2}):(\d{2})/g, '')                                                                          // 単独HH:MM
     .replace(/(\d+)(時間|分)/g, '')
     .replace(/(今日|明日|明後日|来週)(の|まで|から|に)?/g, '')
-    .replace(/(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?の?/g, '')
-    .replace(/\d{1,2}月\d{1,2}日の?に?/g, '')
+    .replace(/\d{1,2}月\d{1,2}日の?に?/g, '')                          // 月日（曜日除去より先に消す）
+    .replace(/\d{1,2}日の?に?/g, '')                                    // 月なし単独の「N日」
+    .replace(/(来週|今週|次の?)?(月|火|水|木|金|土|日)曜(日)?の?/g, '') // 曜日は「曜」必須（「14日」の日を誤食いしない）
     .replace(/(午前|午後|朝|昼|夜|夕方)(に|から|は)?/g, '')
     .replace(/(追加|入れ|入力)(して|する|ください|お願い|て)?/g, '')
     .replace(/[、,，。\s]+/g, ' ')
@@ -2954,6 +2955,9 @@ const BOT_TESTS = [
   // 時刻レンジ（〜から〜まで）→ 開始時刻・所要時間・題名を正しく抽出（報告バグの回帰）
   { g:'core', in:'カレンダーに明日の12時から15時まで、NANDEMO、と入力して', want:'add_schedule', sdur:180, stitle:'NANDEMO' },
   { g:'core', in:'13時から14時半に会議を入れて',     want:'add_schedule', sdur:90,  stitle:'会議' },
+  // 日付＋時刻レンジ同時指定 → 題名に日付の数字が残らないこと（報告バグの回帰）
+  { g:'core', in:'6月14日 16時から19時まで会議',     want:'add_schedule', sdur:180, stitle:'会議', sdate:'2026-06-14', sstart:'16:00' },
+  { g:'core', in:'カレンダーに6月14日16時から19時まで打ち合わせ', want:'add_schedule', sdur:180, stitle:'打ち合わせ', sdate:'2026-06-14' },
   // ── 複数日付（既知バグの回帰） ──
   { g:'core', in:'6月20日と21日にWINGビジコン',        want:'add_multi', tasks:2, dl:['2026-06-20','2026-06-21'] },
   { g:'core', in:'カレンダーに6月20日、21日にWINGビジコンと入力して', want:'add_multi', tasks:2, dl:['2026-06-20','2026-06-21'] },
@@ -3129,13 +3133,15 @@ function runBotTests() {
         const wantDls = [...tc.dl].sort();
         if (JSON.stringify(newDls) !== JSON.stringify(wantDls)) { pass = false; notes.push(`期限 期待[${wantDls}]/実際[${newDls}]`); }
       }
-      // 追加検証：スケジュールの所要時間・題名
-      if (pass && (tc.sdur != null || tc.stitle)) {
+      // 追加検証：スケジュールの所要時間・題名・日付・開始時刻
+      if (pass && (tc.sdur != null || tc.stitle || tc.sdate || tc.sstart)) {
         const s = after.sched.find(a=>!before.sched.find(b=>b.id===a.id));
         if (!s) { pass = false; notes.push('スケジュール未追加'); }
         else {
-          if (tc.sdur != null && s.duration !== tc.sdur) { pass = false; notes.push(`所要 期待${tc.sdur}/実際${s.duration}`); }
-          if (tc.stitle && s.title !== tc.stitle)        { pass = false; notes.push(`題名 期待${tc.stitle}/実際${s.title}`); }
+          if (tc.sdur != null && s.duration !== tc.sdur)  { pass = false; notes.push(`所要 期待${tc.sdur}/実際${s.duration}`); }
+          if (tc.stitle && s.title !== tc.stitle)         { pass = false; notes.push(`題名 期待${tc.stitle}/実際${s.title}`); }
+          if (tc.sdate  && s.date !== tc.sdate)           { pass = false; notes.push(`日付 期待${tc.sdate}/実際${s.date}`); }
+          if (tc.sstart && s.startTime !== tc.sstart)     { pass = false; notes.push(`開始 期待${tc.sstart}/実際${s.startTime}`); }
         }
       }
       results.push({ g:tc.g, in:tc.in, want:tc.want, got, pass, notes:notes.join(' / ') });
