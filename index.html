@@ -920,7 +920,8 @@ const getTodos    = ()  => dbGet(KEYS.todos);
 const setTodos    = (v) => { dbSet(KEYS.todos, v);    scheduleSync(); };
 
 const uid      = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
-const todayStr = () => new Date().toISOString().split('T')[0];
+const fmtDate  = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const todayStr = () => fmtDate(new Date());
 const escHtml  = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 // ─── ① グループ管理 ────────────────────────────────────────────────────────────
@@ -1728,10 +1729,10 @@ function botNorm(text) {
 function botExtractDate(text) {
   const today = new Date(); today.setHours(0,0,0,0);
   if (/今日/.test(text)) return todayStr();
-  if (/明後日|あさって/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+2); return d.toISOString().split('T')[0]; }
-  if (/明日/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; }
+  if (/明後日|あさって/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+2); return fmtDate(d); }
+  if (/明日/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+1); return fmtDate(d); }
   if (/今週末|今週の?土曜/.test(text)) {
-    const d=new Date(today); d.setDate(d.getDate()+(6-d.getDay()||7)); return d.toISOString().split('T')[0];
+    const d=new Date(today); d.setDate(d.getDate()+(6-d.getDay()||7)); return fmtDate(d);
   }
   // 曜日パターン（来週月曜、金曜など）
   const DAYS = {'日':0,'月':1,'火':2,'水':3,'木':4,'金':5,'土':6};
@@ -1753,15 +1754,15 @@ function botExtractDate(text) {
         if (diff <= 0) diff += 7;
       }
       const d = new Date(today); d.setDate(d.getDate() + diff);
-      return d.toISOString().split('T')[0];
+      return fmtDate(d);
     }
   }
   // 来週（曜日なし）→ +7日
-  if (/来週/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+7); return d.toISOString().split('T')[0]; }
+  if (/来週/.test(text)) { const d=new Date(today); d.setDate(d.getDate()+7); return fmtDate(d); }
   const m1 = text.match(/(\d{1,2})月(\d{1,2})日/);
-  if (m1) { const d=new Date(today.getFullYear(),parseInt(m1[1])-1,parseInt(m1[2])); return d.toISOString().split('T')[0]; }
+  if (m1) { return fmtDate(new Date(today.getFullYear(), parseInt(m1[1])-1, parseInt(m1[2]))); }
   const m2 = text.match(/(\d{1,2})\/(\d{1,2})/);
-  if (m2) { const d=new Date(today.getFullYear(),parseInt(m2[1])-1,parseInt(m2[2])); return d.toISOString().split('T')[0]; }
+  if (m2) { return fmtDate(new Date(today.getFullYear(), parseInt(m2[1])-1, parseInt(m2[2]))); }
   return null;
 }
 
@@ -1804,13 +1805,13 @@ function botExtractAllDates(text) {
   const hm = text.match(headRe);
   if (hm) {
     const month = parseInt(hm[1]);
-    tmp.push(new Date(today.getFullYear(), month-1, parseInt(hm[2])).toISOString().split('T')[0]);
+    tmp.push(fmtDate(new Date(today.getFullYear(), month-1, parseInt(hm[2]))));
     let rest = text.slice(hm.index + hm[0].length);
     while (true) {
       // 区切り文字（と・、,空白や）に続くDD日のみを拾う
       const cm = rest.match(/^[と・、,\s　やかつ及び]+(\d{1,2})日/);
       if (!cm) break;
-      const ds = new Date(today.getFullYear(), month-1, parseInt(cm[1])).toISOString().split('T')[0];
+      const ds = fmtDate(new Date(today.getFullYear(), month-1, parseInt(cm[1])));
       if (!tmp.includes(ds)) tmp.push(ds);
       rest = rest.slice(cm[0].length);
     }
@@ -1821,7 +1822,7 @@ function botExtractAllDates(text) {
   const allRe = /(\d{1,2})月(\d{1,2})日/g;
   let m;
   while ((m = allRe.exec(text)) !== null) {
-    const ds = new Date(today.getFullYear(), parseInt(m[1])-1, parseInt(m[2])).toISOString().split('T')[0];
+    const ds = fmtDate(new Date(today.getFullYear(), parseInt(m[1])-1, parseInt(m[2])));
     if (!tmp.includes(ds)) tmp.push(ds);
   }
   if (tmp.length > 0) return tmp.sort();
