@@ -396,8 +396,7 @@
     @keyframes typingBounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-7px); } }
     .chat-clear-btn { font-size: 12px; color: var(--text-secondary); background: none; border: none; cursor: pointer; padding: 4px 8px; border-radius: var(--radius-sm); }
     .chat-clear-btn:hover { background: var(--bg); color: var(--urgent); }
-    .api-key-hint { font-size: 11px; color: var(--text-secondary); margin-top: 6px; }
-    .api-key-hint a { color: var(--primary); }
+
 
     /* ── テーマ選択UI ── */
     .theme-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-top: 4px; }
@@ -664,21 +663,6 @@
             <div class="settings-sub">ダッシュボードに表示する名前</div>
           </div>
           <input type="text" id="settingUserName" class="form-input" style="width:200px;" placeholder="名前を入力" oninput="saveSettings()">
-        </div>
-      </div>
-
-      <!-- AI設定 -->
-      <div class="card settings-card">
-        <h3>AI設定</h3>
-        <div class="settings-row">
-          <div>
-            <div class="settings-label">Anthropic APIキー</div>
-            <div class="settings-sub">AIアシスタントの使用に必要です</div>
-          </div>
-        </div>
-        <input type="password" id="settingApiKey" class="form-input" placeholder="sk-ant-api..." oninput="saveApiKey()" style="margin-bottom:6px;">
-        <div class="api-key-hint">
-          APIキーは <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a> で取得できます。ブラウザのローカルストレージにのみ保存されます。
         </div>
       </div>
 
@@ -2984,7 +2968,7 @@ function renderThemeGrid() {
 function renderSettings() {
   const s = getSettings();
   document.getElementById('settingUserName').value = s.userName || '';
-  document.getElementById('settingApiKey').value   = s.apiKey   || '';
+
   document.getElementById('settingSupaUrl').value  = s.supaUrl  || '';
   document.getElementById('settingSupaKey').value  = s.supaKey  || '';
   renderThemeGrid();
@@ -2993,11 +2977,6 @@ function renderSettings() {
   updateAuthUI(!!currentUser);
 }
 
-function saveApiKey() {
-  const s = getSettings();
-  s.apiKey = document.getElementById('settingApiKey').value.trim();
-  setSettings(s);
-}
 
 function saveSettings() {
   const s = getSettings();
