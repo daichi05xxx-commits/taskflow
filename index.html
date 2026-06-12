@@ -1752,9 +1752,10 @@ function botExtractDate(text) {
 // 時刻抽出（時限・午前午後・時刻）
 function botExtractTime(text) {
   const periods = ['','09:00','10:40','12:20','14:00','15:40','17:20'];
-  const lm = text.match(/(\d)(限|時限)/);
+  const lm = text.match(/([1-6])(限|時限)/);
   if (lm) { const p = parseInt(lm[1]); return periods[p] || '09:00'; }
-  const tm = text.match(/(\d{1,2})時((\d{2})分)?/);
+  // 「3時間」のような時間単位は除外（(?!間) 負先読み）
+  const tm = text.match(/(\d{1,2})時(?!間)((\d{2})分)?/);
   if (tm) return `${tm[1].padStart(2,'0')}:${(tm[3]||'00').padStart(2,'0')}`;
   if (/朝|午前/.test(text)) return '09:00';
   if (/昼/.test(text))      return '12:00';
@@ -1778,19 +1779,30 @@ function botExtractTaskName(text) {
     .trim();
 }
 
-// 複数日付を全て抽出（「6月20日と21日」など）
+// 複数日付を全て抽出（「6月20日と21日」「6月20・21日」など）
 function botExtractAllDates(text) {
   const today = new Date(); today.setHours(0,0,0,0);
   const dates = [];
   // "MM月DD日" を全て拾う
   const re = /(\d{1,2})月(\d{1,2})日/g;
-  let m;
+  let m, lastMonth = null;
+  // まず月付きの日付を拾いつつ最後の月を記憶
+  const tmp = [];
   while ((m = re.exec(text)) !== null) {
-    const d = new Date(today.getFullYear(), parseInt(m[1])-1, parseInt(m[2]));
-    const ds = d.toISOString().split('T')[0];
-    if (!dates.includes(ds)) dates.push(ds);
+    lastMonth = parseInt(m[1]);
+    const ds = new Date(today.getFullYear(), lastMonth-1, parseInt(m[2])).toISOString().split('T')[0];
+    if (!tmp.includes(ds)) tmp.push(ds);
   }
-  if (dates.length > 0) return dates.sort();
+  // 「6月20日と21日」のように月なしのDD日が続く場合を補完
+  if (lastMonth !== null) {
+    const re2 = /(?<!\d月)(\d{1,2})日/g;
+    while ((m = re2.exec(text)) !== null) {
+      // 直前が月付き日付でない独立したDD日
+      const ds = new Date(today.getFullYear(), lastMonth-1, parseInt(m[1])).toISOString().split('T')[0];
+      if (!tmp.includes(ds)) tmp.push(ds);
+    }
+  }
+  if (tmp.length > 0) return tmp.sort();
   const single = botExtractDate(text);
   return single ? [single] : [];
 }
@@ -1859,7 +1871,8 @@ function botProcess(text) {
   }
 
   // ── 今日やること全部（複合） ─────────────────────────────────────────────────
-  if (/(今日.*(やること|全部|全て|まとめ|一覧|何が)|全部.*今日)/.test(n)) {
+  if (/(今日.*(やること|全部|全て|まとめ|一覧|何が|何|は？|は$)|全部.*今日)/.test(n) &&
+      !/(追加|登録|入れ|作|削除|消|完了|終わ|できた)/.test(n)) {
     return botTodayAll();
   }
 
@@ -1892,12 +1905,13 @@ function botProcess(text) {
   }
 
   // ── TODO完了 ─────────────────────────────────────────────────────────────────
-  if (/(todo|やること).*(完了|終わ|できた|済ませ|クリア)|(完了|終わ|できた|済ませ|クリア).*(todo|やること)/.test(n)) {
+  if (/(todo|やること).*(完了|終わ|できた|済ませ|クリア|片付|やっつけ|おわ)|(完了|終わ|できた|済ませ|クリア|片付|やっつけ|おわ).*(todo|やること)/.test(n)) {
     return botCompleteTodo(text, n);
   }
 
-  // ── タスク削除 ───────────────────────────────────────────────────────────────
-  if (/(削除|消(して|す)|なくして|remove|delete)/.test(n) && /(タスク|task)/.test(n)) {
+  // ── タスク削除（「タスク」キーワードなしでも動作） ────────────────────────────
+  if (/(削除|消(して|す)|なくして|remove|delete)/.test(n) &&
+      !/(スケジュール|予定|カレンダー|todo|やること)/.test(n)) {
     return botDeleteTask(text, n);
   }
 
@@ -2286,10 +2300,12 @@ function botAddMultipleDates(original, n, dates) {
   // タイトル抽出：日付・助詞・操作ワードを除去
   let title = original
     .replace(/(\d{1,2})月(\d{1,2})日/g, '')
+    .replace(/(?<!\d月)(\d{1,2})日/g, '')  // 月なし単独DD日も除去
     .replace(/(カレンダー|スケジュール|予定|タスク|課題)/g, '')
     .replace(/(と|・|、|,)/g, ' ')
     .replace(/(に|を|が|は|の|で|から|まで|へ)?(入力|追加|入れ|作成|登録)(して|する|ください|お願い|します)?/g, ' ')
     .replace(/[、,，。\s]+/g, ' ')
+    .replace(/^(の|を|が|は|に|と|で|\s)+|(\s|の|を|が|は|に|と|で)+$/g, '')
     .trim();
   if (!title || title.length < 2) {
     return { text: `登録する内容の名前を教えてください。\n例：「6月20日と21日にWINGビジコン」` };
@@ -2316,20 +2332,23 @@ function botAddMultipleDates(original, n, dates) {
 
 function botAddSchedule(original, n) {
   const startTime = botExtractTime(original) || '09:00';
-  const durMatch = original.match(/(\d+)(時間|分)/);
+  // 時間単位の数字と分は別途処理（duration用）
+  const durMatch = original.replace(/\d(限|時限)/g,'').match(/(\d+)(時間|分)/);
   const duration = durMatch ? (durMatch[2]==='時間' ? parseInt(durMatch[1])*60 : parseInt(durMatch[1])) : 60;
   const dateForSched = botExtractDate(original) || todayStr();
   let title = original
-    .replace(/(を|に|の)?(スケジュール|予定)(を|に|の)?(追加|入れ|作|登録)(して|する|ください)?/g, '')
+    .replace(/(を|に|の|へ|は)?(カレンダー|スケジュール|予定)(を|に|の|へ|は)?(追加|入れ|作|登録|入力)(して|する|ください|お願い)?/g, '')
+    .replace(/(カレンダー)/g, '')
     .replace(/\d(限|時限)/g, '')
     .replace(/(\d{1,2})時((\d{2})分)?から?/g, '')
     .replace(/(\d+)(時間|分)/g, '')
     .replace(/(今日|明日|明後日|来週).{0,3}(まで|から|の)?/g, '')
     .replace(/(来週|今週|次の?)?(月|火|水|木|金|土|日)(曜(日)?)?の?/g, '')
-    .replace(/\d{1,2}月\d{1,2}日の?/g, '')
+    .replace(/\d{1,2}月\d{1,2}日の?に?/g, '')
     .replace(/(午前|午後|朝|昼|夜|夕方)(に|から|は)?/g, '')
-    .replace(/(追加|入れ)(して|する|ください)?/g, '')
-    .replace(/^(の|を|が|は|に|\s)+|(\s|の|を|が|は|に)+$/g, '')
+    .replace(/(追加|入れ|入力)(して|する|ください|お願い)?/g, '')
+    .replace(/[、,，。\s]+/g, ' ')
+    .replace(/^(の|を|が|は|に|と|で|\s)+|(\s|の|を|が|は|に|と|で)+$/g, '')
     .trim();
   if (!title || title.length < 2) return { text: 'スケジュールのタイトルを教えてください。\n例：「3限にゼミ入れて」「土曜の午後にバイト」' };
   setSched([...getSched(), { id:uid(), title, startTime, duration, date:dateForSched }]);
