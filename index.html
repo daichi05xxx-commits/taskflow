@@ -1778,6 +1778,23 @@ function botExtractTaskName(text) {
     .trim();
 }
 
+// 複数日付を全て抽出（「6月20日と21日」など）
+function botExtractAllDates(text) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dates = [];
+  // "MM月DD日" を全て拾う
+  const re = /(\d{1,2})月(\d{1,2})日/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const d = new Date(today.getFullYear(), parseInt(m[1])-1, parseInt(m[2]));
+    const ds = d.toISOString().split('T')[0];
+    if (!dates.includes(ds)) dates.push(ds);
+  }
+  if (dates.length > 0) return dates.sort();
+  const single = botExtractDate(text);
+  return single ? [single] : [];
+}
+
 // 曖昧マッチ：タスク名から部分一致で探す
 function botFindTask(keyword, candidates) {
   if (!keyword) return null;
@@ -1826,9 +1843,19 @@ function botProcess(text) {
       '「今週の進捗を教えて」「期限が近いタスクは？」\n\n' +
       '📅 スケジュール\n' +
       '「今日の3限にゼミ入れて」「土曜の午後にバイト」\n' +
+      '「6月20日と21日にWINGビジコン」\n' +
+      '「カレンダーの6月20日・21日にWINGビジコンと入力して」\n' +
       '「10時から数学をスケジュールに追加して」\n' +
       '「〇〇の予定キャンセルして」'
     };
+  }
+
+  // ── 複数日付への同時登録（「6月20日と21日にXX」） ──────────────────────────
+  {
+    const allDates = botExtractAllDates(text);
+    if (allDates.length > 1 && !/(削除|消|キャンセル|完了|一覧|見せ|教え|確認|どうなってる|状態)/.test(n)) {
+      return botAddMultipleDates(text, n, allDates);
+    }
   }
 
   // ── 今日やること全部（複合） ─────────────────────────────────────────────────
@@ -1909,9 +1936,10 @@ function botProcess(text) {
     return botAddTodo(text, n);
   }
 
-  // ── スケジュール追加（時限・午前午後も含む） ─────────────────────────────────
-  if ((/(スケジュール|予定).*(追加|入れ|作|登録)/.test(n) ||
-       /(追加|入れ|作|登録).*(スケジュール|予定)/.test(n) ||
+  // ── スケジュール追加（カレンダー・時限・午前午後も含む） ──────────────────────
+  if ((/(スケジュール|予定|カレンダー).*(追加|入れ|作|登録|入力)/.test(n) ||
+       /(追加|入れ|作|登録|入力).*(スケジュール|予定|カレンダー)/.test(n) ||
+       /カレンダー.*(に|の|へ)/.test(n) ||
        /\d(限|時限)/.test(n) ||
        /\d{1,2}時(間|.*から)/.test(n) ||
        /(午前|午後|朝|昼|夜|夕方).*(に|から)/.test(n)) &&
@@ -2251,6 +2279,39 @@ function botAddTodo(original, n) {
   setTodos([...getTodos(), { id:uid(), text, done:false, date:todayStr() }]);
   renderPage(currentPage);
   return { text: `✅ 「${text}」を今日のTODOに追加しました！` };
+}
+
+function botAddMultipleDates(original, n, dates) {
+  const isSchedule = /(カレンダー|スケジュール|予定)/.test(n);
+  // タイトル抽出：日付・助詞・操作ワードを除去
+  let title = original
+    .replace(/(\d{1,2})月(\d{1,2})日/g, '')
+    .replace(/(カレンダー|スケジュール|予定|タスク|課題)/g, '')
+    .replace(/(と|・|、|,)/g, ' ')
+    .replace(/(に|を|が|は|の|で|から|まで|へ)?(入力|追加|入れ|作成|登録)(して|する|ください|お願い|します)?/g, ' ')
+    .replace(/[、,，。\s]+/g, ' ')
+    .trim();
+  if (!title || title.length < 2) {
+    return { text: `登録する内容の名前を教えてください。\n例：「6月20日と21日にWINGビジコン」` };
+  }
+  if (isSchedule) {
+    const startTime = botExtractTime(original) || '09:00';
+    const durMatch = original.match(/(\d+)(時間|分)/);
+    const duration = durMatch ? (durMatch[2]==='時間' ? parseInt(durMatch[1])*60 : parseInt(durMatch[1])) : 60;
+    dates.forEach(date => {
+      setSched([...getSched(), { id:uid(), title, startTime, duration, date }]);
+    });
+    renderPage(currentPage);
+    return { text: `📅 「${title}」を${dates.length}日程スケジュールに追加しました！\n${dates.map(d=>`  ${d} ${startTime}〜`).join('\n')}` };
+  } else {
+    const groups = getGroups();
+    const group = groups.find(g => title.includes(g.name))?.id || '';
+    dates.forEach(date => {
+      setTasks([...getTasks(), { id:uid(), name:title, group, tag:'', status:'todo', progress:0, deadline:date, memo:'', createdAt:todayStr() }]);
+    });
+    renderPage(currentPage);
+    return { text: `📋 「${title}」を${dates.length}件のタスクとして追加しました！\n${dates.map(d=>`  📅 期限 ${d}`).join('\n')}` };
+  }
 }
 
 function botAddSchedule(original, n) {
