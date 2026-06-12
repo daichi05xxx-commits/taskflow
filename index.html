@@ -2232,7 +2232,7 @@ function botListSchedule() {
 
 function botListTomorrow() {
   const d = new Date(); d.setDate(d.getDate()+1);
-  const tStr = d.toISOString().split('T')[0];
+  const tStr = fmtDate(d);
   const tasks = getTasks().filter(t => t.deadline === tStr && t.status !== 'done');
   const evs = getSched().filter(e => e.date === tStr).sort((a,b)=>a.startTime.localeCompare(b.startTime));
   let text = `📅 明日（${tStr}）の予定:\n\n`;
@@ -2247,7 +2247,7 @@ function botListThisWeek() {
   const today = new Date(); today.setHours(0,0,0,0);
   const tStr = todayStr();
   const endOfWeek = new Date(today); endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
-  const endStr = endOfWeek.toISOString().split('T')[0];
+  const endStr = fmtDate(endOfWeek);
   const tasks = getTasks()
     .filter(t => t.deadline && t.deadline >= tStr && t.deadline <= endStr && t.status !== 'done')
     .sort((a,b) => a.deadline.localeCompare(b.deadline));
@@ -3198,7 +3198,7 @@ function saveSettings() {
   setSettings(s);
 }
 
-function addDays(dateStr, n) { const d=new Date(dateStr); d.setDate(d.getDate()+n); return d.toISOString().split('T')[0]; }
+function addDays(dateStr, n) { const d=new Date(dateStr); d.setDate(d.getDate()+n); return fmtDate(d); }
 
 function loadSampleData() {
   const t = todayStr();
