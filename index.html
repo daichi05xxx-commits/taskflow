@@ -777,6 +777,18 @@ create policy "own" on user_data for all
           <button class="btn-danger" onclick="resetData()">リセット</button>
         </div>
       </div>
+
+      <!-- ── 開発者向け ── -->
+      <div class="card settings-card">
+        <h3>開発者向け</h3>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">AIチャットの自動テスト</div>
+            <div class="settings-sub">入力→意図の回帰テストを実行します（データは変更されません）</div>
+          </div>
+          <button class="btn-ghost" onclick="runBotTests()">🧪 テスト実行</button>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -922,6 +934,9 @@ const dbSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
 // Supabase state (populated later)
 let supaClient = null, currentUser = null, syncDebounceTimer = null;
+
+// テスト実行中は同期・再描画を止める（フィクスチャ漏洩・UIちらつき防止）
+let _botTestMode = false;
 
 const getTasks    = ()  => dbGet(KEYS.tasks);
 const setTasks    = (v) => { dbSet(KEYS.tasks, v);    scheduleSync(); };
@@ -1077,6 +1092,7 @@ function navigate(page) {
 }
 
 function renderPage(page) {
+  if (_botTestMode) return;
   if (page === 'dashboard') renderDashboard();
   if (page === 'tasks')     renderTasksPage();
   if (page === 'chat')      renderChatPage();
@@ -2035,7 +2051,8 @@ function botProcess(text) {
 
   // ── 今日やること全部（複合） ─────────────────────────────────────────────────
   if (/(今日.*(やること|全部|全て|まとめ|一覧|何が|何|は？|は$)|全部.*今日)/.test(n) &&
-      !/(追加|登録|入れ|作|削除|消|完了|終わ|できた)/.test(n)) {
+      !/(追加|登録|入れ|作|削除|消|完了|終わ|できた)/.test(n) &&
+      !/(スケジュール|予定|タスク|task)/.test(n)) {
     return botTodayAll();
   }
 
@@ -2101,8 +2118,8 @@ function botProcess(text) {
   // ── 「〇〇もタスクに入れといて」通常パターン ─────────────────────────────────
   if ((/(タスク|課題|仕事).*(追加|作|登録|入れ|作成|新規)/.test(n) ||
        /(追加|作|登録|入れ|作成).*(タスク|課題|仕事)/.test(n) ||
-       /(も|を)?(タスク|リスト|todo)に(入れ|追加|登録)(といて|して|お願い)?/.test(n)) &&
-      !/(一覧|見せ|教え|確認|ある|は？|どうなってる|状態)/.test(n)) {
+       /(も|を)?(タスク|リスト)に(入れ|追加|登録)(といて|して|お願い)?/.test(n)) &&
+      !/(一覧|見せ|教え|確認|ある|は？|どうなってる|状態|todo|やること)/.test(n)) {
     return botAddTask(text, n);
   }
 
@@ -2141,10 +2158,11 @@ function botProcess(text) {
   }
 
   // ── タスク一覧（未完了のやつ含む） ──────────────────────────────────────────
-  if (/(タスク|task).*(一覧|リスト|見せ|教え|確認|ある|は|何)/.test(n) ||
-      /(一覧|見せ|教え|確認).*(タスク|task)/.test(n) ||
-      /(未完了|残り).*(やつ|もの|タスク|task)/.test(n) ||
-      n === 'タスク' || n === 'タスク一覧') {
+  if ((/(タスク|task).*(一覧|リスト|見せ|教え|確認|ある|は|何)/.test(n) ||
+       /(一覧|見せ|教え|確認).*(タスク|task)/.test(n) ||
+       /(未完了|残り).*(やつ|もの|タスク|task)/.test(n) ||
+       n === 'タスク' || n === 'タスク一覧') &&
+      !/(期限|締め切り|締切|デッドライン|近い|急ぎ|やばい|迫っ)/.test(n)) {
     return botListTasks(n);
   }
 
@@ -2604,6 +2622,202 @@ function botFallback(n) {
   if (/(進捗|達成|完了|状況)/.test(n))    hints.push('「今週の進捗を教えて」「今日やること全部教えて」');
   if (hints.length > 0) return { text: `うまく理解できませんでした 🤔\n\nこんな言い方はいかがですか？\n${hints.join('\n')}` };
   return { text: 'すみません、その内容は理解できませんでした 🤔\n「ヘルプ」と送るとできることの一覧が見れます！' };
+}
+
+// ═══ Bot テスト基盤（回帰ネット） ═══════════════════════════════════════════════
+// 既知の状態(フィクスチャ)をセット → botProcessを実行 → 起きた変化から意図を判定 →
+// 期待値と比較。テスト後に元データを必ず復元する。_botTestModeで同期・再描画を止める。
+
+function _botTestFixture() {
+  const t = todayStr();
+  return {
+    tasks: [
+      { id:'t1', name:'数学のレポート', status:'todo',     progress:0,   deadline:'',           group:'', tag:'', memo:'', createdAt:t },
+      { id:'t2', name:'英語のプレゼン', status:'todo',     progress:0,   deadline:'2026-06-15', group:'', tag:'', memo:'', createdAt:t },
+      { id:'t3', name:'統計の課題',     status:'progress', progress:50,  deadline:'2026-06-20', group:'', tag:'', memo:'', createdAt:t },
+    ],
+    todos: [ { id:'d1', text:'数学の勉強', done:false, date:t } ],
+    sched: [ { id:'s1', title:'ゼミ', startTime:'10:40', duration:60, date:t } ],
+  };
+}
+
+// botProcess実行で起きた状態変化＋出力テキストから「実際に発火した意図」を逆算
+function _botDetectIntent(before, after, out) {
+  const txt = out.text || '';
+  const dTask  = after.tasks.length  - before.tasks.length;
+  const dTodo  = after.todos.length  - before.todos.length;
+  const dSched = after.sched.length  - before.sched.length;
+  if (dTask >= 2)  return 'add_multi';
+  if (dTask === 1) return 'add_task';
+  if (dTodo === 1) return 'add_todo';
+  if (dSched === 1) return 'add_schedule';
+  if (dTask <= -1) return 'delete_task';
+  if (dSched <= -1) return 'delete_schedule';
+  const doneB = before.tasks.filter(t=>t.status==='done').length;
+  const doneA = after.tasks.filter(t=>t.status==='done').length;
+  if (doneA > doneB) return 'complete_task';
+  const progB = before.tasks.filter(t=>t.status==='progress').length;
+  const progA = after.tasks.filter(t=>t.status==='progress').length;
+  if (progA > progB) return 'start_task';
+  if (after.tasks.some(a=>{const b=before.tasks.find(x=>x.id===a.id);return b&&b.deadline!==a.deadline;})) return 'update_deadline';
+  if (after.tasks.some(a=>{const b=before.tasks.find(x=>x.id===a.id);return b&&b.name!==a.name;}))         return 'rename_task';
+  if (after.todos.some(a=>{const b=before.todos.find(x=>x.id===a.id);return b&&!b.done&&a.done;}))          return 'complete_todo';
+  // 状態変化なし → 読み取り系を出力テキストから判定
+  if (/理解できませんでした/.test(txt)) return 'fallback';
+  if (/お手伝いしましょうか|どういたしまして/.test(txt)) return 'greeting';
+  if (/できることの一覧/.test(txt)) return 'help';
+  if (/現在の進捗/.test(txt)) return 'progress';
+  if (/直近の期限/.test(txt)) return 'deadlines';
+  if (/今日やること/.test(txt)) return 'today_all';
+  if (/残りタスク/.test(txt)) return 'count';
+  if (/今週.{0,2}期限/.test(txt)) return 'week';
+  if (/明日（/.test(txt)) return 'tomorrow';
+  if (/はタスクにあります|というタスクは見つかりませんでした/.test(txt)) return 'check_task';
+  if (/今日のTODO/.test(txt)) return 'list_todos';
+  if (/今日のスケジュール/.test(txt)) return 'list_schedule';
+  if (/タスク（|タスクはありません/.test(txt)) return 'list_tasks';
+  if (/見つかりませんでした/.test(txt)) return 'notfound';
+  return 'unknown';
+}
+
+// テストケース定義。group: core=通常通るべき / 応用=逸脱表現の耐性チェック(赤は既知の弱点)
+const BOT_TESTS = [
+  // ── タスク追加 ──
+  { g:'core', in:'レポートのタスクを追加して',        want:'add_task' },
+  { g:'core', in:'レポートやらないと',                want:'add_task' },
+  { g:'core', in:'数学の課題忘れないようにして',      want:'add_task' },
+  { g:'core', in:'買い物リスト作成も入れといて',      want:'add_task' },
+  { g:'core', in:'英語のプレゼン、来週月曜ね',        want:'add_task' },
+  // ── TODO追加 ──
+  { g:'core', in:'数学の勉強をTODOに追加して',        want:'add_todo' },
+  { g:'core', in:'買い出しをやることに入れて',        want:'add_todo' },
+  // ── スケジュール追加 ──
+  { g:'core', in:'今日の3限にゼミ入れて',             want:'add_schedule' },
+  { g:'core', in:'土曜の午後にバイト',                want:'add_schedule' },
+  { g:'core', in:'10時から数学をスケジュールに追加して', want:'add_schedule' },
+  { g:'core', in:'明日の予定にミーティングを追加',    want:'add_schedule' },
+  // ── 複数日付（既知バグの回帰） ──
+  { g:'core', in:'6月20日と21日にWINGビジコン',        want:'add_multi', tasks:2, dl:['2026-06-20','2026-06-21'] },
+  { g:'core', in:'カレンダーに6月20日、21日にWINGビジコンと入力して', want:'add_multi', tasks:2, dl:['2026-06-20','2026-06-21'] },
+  { g:'core', in:'カレンダーの6月20日にWINGビジコン',  want:'add_task', dl:['2026-06-20'] },
+  // ── タスク完了（口語・略語） ──
+  { g:'core', in:'数学のレポート完了にして',          want:'complete_task' },
+  { g:'core', in:'数学のレポート終わり',              want:'complete_task' },
+  { g:'core', in:'数学おわ',                          want:'complete_task' },
+  { g:'core', in:'統計の課題クリア',                  want:'complete_task' },
+  { g:'core', in:'英語のプレゼン片付いた',            want:'complete_task' },
+  // ── タスク削除 ──
+  { g:'core', in:'数学のレポートを削除して',          want:'delete_task' },
+  { g:'core', in:'統計の課題消して',                  want:'delete_task' },
+  // ── タスク更新 ──
+  { g:'core', in:'英語のプレゼンの期限を金曜に変えて', want:'update_deadline' },
+  { g:'core', in:'統計の課題の名前を統計レポートに直して', want:'rename_task' },
+  { g:'core', in:'数学のレポートを進行中にして',      want:'start_task' },
+  // ── スケジュール削除 ──
+  { g:'core', in:'ゼミの予定キャンセルして',          want:'delete_schedule' },
+  // ── TODO完了 ──
+  { g:'core', in:'数学の勉強をTODO完了にして',        want:'complete_todo' },
+  // ── 確認系（読み取り） ──
+  { g:'core', in:'タスク一覧を見せて',                want:'list_tasks' },
+  { g:'core', in:'未完了のやつ見せて',                want:'list_tasks' },
+  { g:'core', in:'今日のTODOを教えて',                want:'list_todos' },
+  { g:'core', in:'今日のスケジュールは？',            want:'list_schedule' },
+  { g:'core', in:'今週何がある？',                    want:'week' },
+  { g:'core', in:'明日の予定は？',                    want:'tomorrow' },
+  { g:'core', in:'今日やること全部教えて',            want:'today_all' },
+  { g:'core', in:'あと何個残ってる？',                want:'count' },
+  { g:'core', in:'今週の進捗を教えて',                want:'progress' },
+  { g:'core', in:'期限が近いタスクは？',              want:'deadlines' },
+  { g:'core', in:'英語のプレゼンってまだタスクに入れてた？', want:'check_task' },
+  { g:'core', in:'統計の課題どうなってる？',          want:'check_task' },
+  // ── あいさつ・ヘルプ・フォールバック ──
+  { g:'core', in:'こんにちは',                        want:'greeting' },
+  { g:'core', in:'ありがとう',                        want:'greeting' },
+  { g:'core', in:'ヘルプ',                            want:'help' },
+  { g:'core', in:'あいうえおかきくけこ12345',         want:'fallback' },
+
+  // ── 応用：逸脱した言い回し（赤=現状の弱点。汎化の天井を可視化） ──
+  { g:'応用', in:'そろそろレポート手をつけないとな',  want:'add_task' },
+  { g:'応用', in:'数学のレポート、もう出した',        want:'complete_task' },
+  { g:'応用', in:'英語のプレゼンいつまでだっけ',      want:'check_task' },
+  { g:'応用', in:'統計の課題ってあとどれくらい',      want:'check_task' },
+  { g:'応用', in:'バイト土曜の昼からね',              want:'add_schedule' },
+  { g:'応用', in:'数学のレポートやっぱ金曜にして',    want:'update_deadline' },
+  { g:'応用', in:'今溜まってる宿題どれ',              want:'list_tasks' },
+  { g:'応用', in:'21日と22日と23日にテスト勉強',      want:'add_multi', tasks:3 },
+];
+
+function runBotTests() {
+  const KEY_T = KEYS.tasks, KEY_D = KEYS.todos, KEY_S = KEYS.schedule;
+  const snap = { t: dbGet(KEY_T), d: dbGet(KEY_D), s: dbGet(KEY_S) };
+  _botTestMode = true;
+  const results = [];
+  try {
+    for (const tc of BOT_TESTS) {
+      const fx = _botTestFixture();
+      dbSet(KEY_T, fx.tasks); dbSet(KEY_D, fx.todos); dbSet(KEY_S, fx.sched);
+      const before = { tasks:getTasks(), todos:getTodos(), sched:getSched() };
+      let out, err = null;
+      try { out = botProcess(tc.in); } catch (e) { err = e; out = { text:'' }; }
+      const after = { tasks:getTasks(), todos:getTodos(), sched:getSched() };
+      const got = err ? 'ERROR' : _botDetectIntent(before, after, out);
+      let pass = got === tc.want;
+      const notes = [];
+      if (err) notes.push('例外: ' + err.message);
+      // 追加検証：タスク件数・期限
+      if (pass && tc.tasks != null) {
+        const added = after.tasks.length - before.tasks.length;
+        if (added !== tc.tasks) { pass = false; notes.push(`件数 期待${tc.tasks}/実際${added}`); }
+      }
+      if (pass && tc.dl) {
+        const newDls = after.tasks.filter(a=>!before.tasks.find(b=>b.id===a.id)).map(a=>a.deadline).sort();
+        const wantDls = [...tc.dl].sort();
+        if (JSON.stringify(newDls) !== JSON.stringify(wantDls)) { pass = false; notes.push(`期限 期待[${wantDls}]/実際[${newDls}]`); }
+      }
+      results.push({ g:tc.g, in:tc.in, want:tc.want, got, pass, notes:notes.join(' / ') });
+    }
+  } finally {
+    dbSet(KEY_T, snap.t); dbSet(KEY_D, snap.d); dbSet(KEY_S, snap.s);
+    _botTestMode = false;
+    renderPage(currentPage);
+  }
+  _renderBotTestResults(results);
+  return results;
+}
+
+function _renderBotTestResults(results) {
+  const pass = results.filter(r=>r.pass).length, total = results.length;
+  const groups = {};
+  results.forEach(r => { (groups[r.g] = groups[r.g] || []).push(r); });
+  let rows = '';
+  for (const g of Object.keys(groups)) {
+    const arr = groups[g];
+    const gp = arr.filter(r=>r.pass).length;
+    rows += `<tr><td colspan="4" style="background:var(--bg);font-weight:600;padding:8px 10px;">${g}（${gp}/${arr.length}）</td></tr>`;
+    arr.forEach(r => {
+      rows += `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px 10px;text-align:center;">${r.pass?'✅':'❌'}</td>
+        <td style="padding:6px 10px;">${escHtml(r.in)}</td>
+        <td style="padding:6px 10px;color:var(--text-secondary);font-size:12px;">${r.pass?r.want:`期待:${r.want}<br>実際:${r.got}`}</td>
+        <td style="padding:6px 10px;color:#dc2626;font-size:12px;">${escHtml(r.notes||'')}</td>
+      </tr>`;
+    });
+  }
+  const rate = Math.round(pass/total*100);
+  const color = rate>=90?'#16a34a':rate>=70?'#ea580c':'#dc2626';
+  const html = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:2000;display:flex;align-items:center;justify-content:center;" onclick="if(event.target===this)this.remove()">
+      <div style="background:var(--bg-card);border-radius:12px;width:760px;max-width:94vw;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);">
+          <div style="font-size:16px;font-weight:600;">🧪 Botテスト結果 <span style="color:${color};">${pass}/${total}（${rate}%）</span></div>
+          <button onclick="this.closest('[style*=fixed]').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-secondary);">×</button>
+        </div>
+        <div style="overflow:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">${rows}</table></div>
+      </div>
+    </div>`;
+  const wrap = document.createElement('div');
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap.firstElementChild);
 }
 
 function appendChatBubble(role, text) {
@@ -3118,6 +3332,7 @@ function launchConfetti(originEl) {
 // ─── Supabase auth & cross-device sync ───────────────────────────────────────
 
 function scheduleSync() {
+  if (_botTestMode) return;
   clearTimeout(syncDebounceTimer);
   syncDebounceTimer = setTimeout(syncUp, 2000);
 }
