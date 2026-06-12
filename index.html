@@ -1087,6 +1087,8 @@ function navigate(page) {
     document.querySelectorAll(`[data-page="${p}"]`).forEach(el => el.classList.toggle('active', p === page));
   });
   currentPage = page;
+  _dayDetailDs = null;
+  _fromDayDetail = false;
   renderPage(page);
 }
 
@@ -1576,7 +1578,8 @@ function saveTask() {
   setTasks(tasks);
   closeModal('taskModal');
   renderPage(currentPage);
-  if (_dayDetailDs) showDayDetail(_dayDetailDs);
+  if (_fromDayDetail && _dayDetailDs) showDayDetail(_dayDetailDs);
+  _fromDayDetail = false;
 }
 
 // ─── Schedule ─────────────────────────────────────────────────────────────────
@@ -1623,7 +1626,8 @@ function saveSchedule() {
   setSched(scheds);
   closeModal('schedModal');
   renderPage(currentPage);
-  if (_dayDetailDs) showDayDetail(_dayDetailDs);
+  if (_fromDayDetail && _dayDetailDs) showDayDetail(_dayDetailDs);
+  _fromDayDetail = false;
 }
 
 function deleteSchedule(id) {
@@ -1709,6 +1713,7 @@ function calNext()  { if (++calMonth>11) { calMonth=0;  calYear++; } renderCalen
 function calToday() { const n=new Date(); calYear=n.getFullYear(); calMonth=n.getMonth(); renderCalendar(); }
 
 let _dayDetailDs = null;
+let _fromDayDetail = false;
 
 function showDayDetail(ds) {
   _dayDetailDs = ds;
@@ -1726,7 +1731,7 @@ function showDayDetail(ds) {
     const endStr = `${String(Math.floor(endMin/60)).padStart(2,'0')}:${String(endMin%60).padStart(2,'0')}`;
     html += `<div class="day-detail-item">
       <div class="day-detail-dot sched"></div>
-      <div class="day-detail-edit" onclick="closeModal('dayDetailModal');openEditSchedule('${s.id}')">
+      <div class="day-detail-edit" onclick="_fromDayDetail=true;closeModal('dayDetailModal');openEditSchedule('${s.id}')">
         <div class="day-detail-name">⏰ ${escHtml(s.title)}</div>
         <div class="day-detail-sub">${s.startTime||'--:--'} 〜 ${endStr}（${s.duration||60}分）</div>
       </div>
@@ -1741,7 +1746,7 @@ function showDayDetail(ds) {
     const isUrgent = t.deadline < tStr && t.status !== 'done';
     html += `<div class="day-detail-item">
       <div class="day-detail-dot ${statusClass[t.status]||'task-todo'}"></div>
-      <div class="day-detail-edit" onclick="closeModal('dayDetailModal');openEditTask('${t.id}')">
+      <div class="day-detail-edit" onclick="_fromDayDetail=true;closeModal('dayDetailModal');openEditTask('${t.id}')">
         <div class="day-detail-name">${escHtml(t.name)}${isUrgent?'<span class="day-detail-badge" style="background:#fee2e2;color:var(--urgent-dark);">期限超過</span>':''}</div>
         <div class="day-detail-sub">
           <span style="color:${statusColor[t.status]||'#94a3b8'}">${statusLabel[t.status]||'未着手'}</span>
@@ -1754,8 +1759,8 @@ function showDayDetail(ds) {
 
   if (!html) html = '<div class="day-detail-empty">この日の予定はありません</div>';
   html += `<div style="display:flex;gap:8px;margin-top:14px;">
-    <button class="btn-ghost" style="flex:1;font-size:13px;" onclick="closeModal('dayDetailModal');openAddTaskWithDate('${ds}')">＋ タスク</button>
-    <button class="btn-ghost" style="flex:1;font-size:13px;" onclick="closeModal('dayDetailModal');openAddSchedule('${ds}')">＋ スケジュール</button>
+    <button class="btn-ghost" style="flex:1;font-size:13px;" onclick="_fromDayDetail=true;closeModal('dayDetailModal');openAddTaskWithDate('${ds}')">＋ タスク</button>
+    <button class="btn-ghost" style="flex:1;font-size:13px;" onclick="_fromDayDetail=true;closeModal('dayDetailModal');openAddSchedule('${ds}')">＋ スケジュール</button>
   </div>`;
 
   document.getElementById('dayDetailBody').innerHTML = html;
@@ -1796,6 +1801,7 @@ function closeDayDetail(e) {
 
 function cancelItemModal(modalId) {
   closeModal(modalId);
+  _fromDayDetail = false;
   if (_dayDetailDs) showDayDetail(_dayDetailDs);
 }
 
