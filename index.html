@@ -444,6 +444,40 @@
       color: #fde9c0 !important; text-shadow: 0 1px 6px rgba(0,0,0,.55);
     }
 
+    /* ── 銀河鉄道: 星の海を走る汽車（ダーク） ── */
+    [data-theme="galaxy"] {
+      --primary: #4338ca; --primary-dark: #312e81;
+      --primary-light: #e0e7ff; --primary-mid: #6366f1; --primary-pale: #c7d2fe;
+      --border: #c7d2fe;
+    }
+    [data-theme="galaxy"] .sidebar { border-right-color: #c7d2fe !important; }
+    [data-theme="galaxy"] .metric-card.accent { border-top: 3px solid #4338ca !important; }
+    [data-theme="galaxy"] .logo-dot { animation: starTwinkle 2.4s ease-in-out infinite; }
+
+    /* ── 草原: 風になびく草原と花（ライト） ── */
+    [data-theme="meadow"] {
+      --primary: #65a30d; --primary-dark: #4d7c0f;
+      --primary-light: #ecfccb; --primary-mid: #a3e635; --primary-pale: #d9f99d;
+      --border: #d9f99d;
+    }
+    [data-theme="meadow"] .sidebar { border-right-color: #d9f99d !important; }
+    [data-theme="meadow"] .metric-card.accent { border-top: 3px solid #65a30d !important; }
+
+    /* ── 桜吹雪: 舞い散る花びら（ライト） ── */
+    [data-theme="sakura"] {
+      --primary: #db2777; --primary-dark: #9d174d;
+      --primary-light: #fce7f3; --primary-mid: #f472b6; --primary-pale: #fbcfe8;
+      --border: #fbcfe8;
+    }
+    [data-theme="sakura"] .sidebar { border-right-color: #fbcfe8 !important; }
+    [data-theme="sakura"] .metric-card.accent { border-top: 3px solid #db2777 !important; }
+
+    /* 銀河鉄道はダーク：ヘッダー文字を明るく */
+    [data-theme="galaxy"] .page-title, [data-theme="galaxy"] .page-sub,
+    [data-theme="galaxy"] .dash-clock-time, [data-theme="galaxy"] .dash-clock-sec, [data-theme="galaxy"] .dash-clock-label {
+      color: #e0e7ff !important; text-shadow: 0 1px 6px rgba(0,0,0,.6);
+    }
+
     /* ── Chat ── */
     .chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 140px); }
     .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; }
@@ -3337,6 +3371,9 @@ const THEMES = [
   { id:'river',   name:'せせらぎ',   bar:'#0d9488' },
   { id:'synth',   name:'機械音楽',   bar:'#d946ef' },
   { id:'train',   name:'車窓',       bar:'#d97706' },
+  { id:'galaxy',  name:'銀河鉄道',   bar:'#4338ca' },
+  { id:'meadow',  name:'草原',       bar:'#65a30d' },
+  { id:'sakura',  name:'桜吹雪',     bar:'#db2777' },
 ];
 
 let bgRaf = null;
@@ -3361,6 +3398,9 @@ function applyTheme(id) {
   if (id === 'river')  startRiverBg(canvas, ctx);
   if (id === 'synth')  startSynthBg(canvas, ctx);
   if (id === 'train')  startTrainBg(canvas, ctx);
+  if (id === 'galaxy') startGalaxyBg(canvas, ctx);
+  if (id === 'meadow') startMeadowBg(canvas, ctx);
+  if (id === 'sakura') startSakuraBg(canvas, ctx);
 }
 
 function stopBgAnimation() {
@@ -3946,6 +3986,169 @@ function startTrainBg(cv, ctx) {
   })();
 }
 
+// 角丸矩形のパス（ctx.roundRect非対応環境向けの自前実装）
+function roundRectPath(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+}
+
+// ── 銀河鉄道の夜: 星の海×天の川×光のレールを走る汽車×たなびく煙 ──────────────
+function startGalaxyBg(cv, ctx) {
+  const starCols=['255,255,255','199,210,254','253,230,138'];
+  const stars=Array.from({length:260},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,r:Math.random()*1.3+0.25,base:0.3+Math.random()*0.7,tw:Math.random()*Math.PI*2,tws:0.008+Math.random()*0.04,col:starCols[Math.floor(Math.random()*starCols.length)]}));
+  const milky=Array.from({length:150},()=>({t:Math.random(),spread:(Math.random()-0.5),r:Math.random()*1.1+0.2,a:Math.random()*0.5+0.1}));
+  let smoke=[];
+  let trainX=cv.width+220;     // 右から左へ走る
+  let t=0;
+  (function draw(){
+    t++;
+    // 夜空
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#0a0a2e'); g.addColorStop(0.5,'#0c0f3a'); g.addColorStop(1,'#080826');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 天の川
+    ctx.save(); ctx.translate(cv.width*0.5,cv.height*0.38); ctx.rotate(-0.5);
+    const mw=cv.width*1.7,mh=170;
+    const mg=ctx.createLinearGradient(0,-mh/2,0,mh/2);
+    mg.addColorStop(0,'rgba(130,140,210,0)');mg.addColorStop(0.5,'rgba(160,170,230,0.10)');mg.addColorStop(1,'rgba(130,140,210,0)');
+    ctx.fillStyle=mg; ctx.fillRect(-mw/2,-mh/2,mw,mh);
+    milky.forEach(m=>{const x=-mw/2+m.t*mw,y=m.spread*mh*0.85;ctx.beginPath();ctx.arc(x,y,m.r,0,Math.PI*2);ctx.fillStyle=`rgba(224,231,255,${m.a*0.6})`;ctx.fill();});
+    ctx.restore();
+    // 星
+    stars.forEach(s=>{s.tw+=s.tws;const a=s.base*(0.5+0.5*Math.sin(s.tw));ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(${s.col},${a})`;ctx.fill();});
+    // 光のレール（宙に浮かぶ星の道）
+    const ry=cv.height*0.72;
+    const rg=ctx.createLinearGradient(0,ry,cv.width,ry);
+    rg.addColorStop(0,'rgba(180,200,255,0)');rg.addColorStop(0.5,'rgba(190,210,255,0.5)');rg.addColorStop(1,'rgba(180,200,255,0)');
+    ctx.strokeStyle=rg;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,ry+14);ctx.lineTo(cv.width,ry+14);ctx.stroke();
+    ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,ry+18);ctx.lineTo(cv.width,ry+18);ctx.stroke();
+    // 煙（汽車の後方上空にたなびき星空へ溶ける）
+    for(let i=smoke.length-1;i>=0;i--){const s=smoke[i];s.x+=s.vx;s.y-=s.vy;s.r+=0.35;s.a-=0.004;if(s.a<=0){smoke.splice(i,1);continue;}ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,Math.PI*2);ctx.fillStyle=`rgba(205,210,235,${s.a})`;ctx.fill();}
+    // 汽車
+    trainX-=1.4; if(trainX<-380) trainX=cv.width+220;
+    drawGalaxyTrain(ctx,trainX,ry,t,smoke);
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
+function drawGalaxyTrain(ctx,x,baseY,t,smoke){
+  const body='rgba(18,16,40,0.95)', win='rgba(255,220,120,0.92)';
+  ctx.save();
+  // 客車（後方=右に2両）
+  for(let c=0;c<2;c++){
+    const cx=x+150+c*95;
+    ctx.fillStyle=body; roundRectPath(ctx,cx,baseY-46,82,40,6); ctx.fill();
+    for(let w=0;w<4;w++){ ctx.fillStyle=win; ctx.globalAlpha=0.75+0.25*Math.sin(t*0.1+c*2+w); ctx.fillRect(cx+8+w*18,baseY-38,12,16); }
+    ctx.globalAlpha=1;
+    ctx.fillStyle=body; ctx.beginPath();ctx.arc(cx+20,baseY,6,0,Math.PI*2);ctx.arc(cx+62,baseY,6,0,Math.PI*2);ctx.fill();
+    ctx.fillRect(cx-13,baseY-12,13,4);
+  }
+  // 機関車（前方=左）
+  ctx.fillStyle=body;
+  roundRectPath(ctx,x+8,baseY-40,90,34,5); ctx.fill();   // ボイラー
+  ctx.fillRect(x+78,baseY-58,30,52);                      // 運転室
+  ctx.fillRect(x+22,baseY-58,12,20);                      // 煙突
+  // 前照灯
+  ctx.beginPath();ctx.arc(x+10,baseY-22,4,0,Math.PI*2);ctx.fillStyle='rgba(255,240,180,0.95)';ctx.shadowColor='#ffe9a8';ctx.shadowBlur=14;ctx.fill();ctx.shadowBlur=0;
+  ctx.fillStyle=win; ctx.fillRect(x+84,baseY-52,18,16);   // 運転室窓
+  // 車輪
+  ctx.fillStyle=body; ctx.beginPath();ctx.arc(x+30,baseY,8,0,Math.PI*2);ctx.arc(x+58,baseY,8,0,Math.PI*2);ctx.arc(x+86,baseY,7,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // 煙を吐く
+  if(t%4===0) smoke.push({x:x+28,y:baseY-58,r:4+Math.random()*3,a:0.35+Math.random()*0.2,vx:0.3+Math.random()*0.6,vy:0.5+Math.random()*0.5});
+}
+
+// ── 草原: 風になびく草×咲き乱れる花×流れる雲・綿毛 ───────────────────────────
+function startMeadowBg(cv, ctx) {
+  const horizon=cv.height*0.6;
+  const blades=Array.from({length:Math.ceil(cv.width/8)},(_,i)=>({x:i*8+Math.random()*4,h:18+Math.random()*48,sw:0.7+Math.random()*0.6,col:['#4d7c0f','#65a30d','#84cc16','#3f6212'][Math.floor(Math.random()*4)]}));
+  const flowers=Array.from({length:24},()=>({x:Math.random()*cv.width,y:horizon+18+Math.random()*(cv.height-horizon-26),r:4+Math.random()*4,col:['#f87171','#fbbf24','#f472b6','#ffffff','#a78bfa'][Math.floor(Math.random()*5)],sw:Math.random()*Math.PI*2}));
+  const clouds=Array.from({length:4},()=>({x:Math.random()*cv.width,y:24+Math.random()*90,r:28+Math.random()*40,sp:0.1+Math.random()*0.15}));
+  const fluff=Array.from({length:14},()=>({x:Math.random()*cv.width,y:Math.random()*horizon,sp:0.3+Math.random()*0.6,ph:Math.random()*Math.PI*2}));
+  let wind=0;
+  (function draw(){
+    wind+=0.03; const gust=0.5+0.5*Math.sin(wind*0.3);
+    // 空〜草原
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#bfe3f5');g.addColorStop(0.5,'#daf0e0');g.addColorStop(0.6,'#cfeaa0');g.addColorStop(1,'#a7d84f');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 陽光
+    const sg=ctx.createRadialGradient(cv.width*0.8,cv.height*0.18,0,cv.width*0.8,cv.height*0.18,170);
+    sg.addColorStop(0,'rgba(255,250,200,0.5)');sg.addColorStop(1,'rgba(255,250,200,0)');
+    ctx.fillStyle=sg; ctx.fillRect(0,0,cv.width,cv.height);
+    // 雲
+    clouds.forEach(c=>{c.x-=c.sp;if(c.x<-c.r*2.2)c.x=cv.width+c.r;ctx.fillStyle='rgba(255,255,255,0.72)';for(let k=0;k<3;k++){ctx.beginPath();ctx.arc(c.x+k*c.r*0.7,c.y+Math.sin(k)*6,c.r*(0.7-k*0.1),0,Math.PI*2);ctx.fill();}});
+    // 綿毛
+    fluff.forEach(f=>{f.ph+=0.04;f.x-=f.sp+gust*1.2;f.y+=Math.sin(f.ph)*0.4;if(f.x<-6){f.x=cv.width+6;f.y=Math.random()*horizon;}ctx.beginPath();ctx.arc(f.x,f.y,2,0,Math.PI*2);ctx.fillStyle='rgba(255,255,255,0.7)';ctx.fill();});
+    // 草（風になびく）
+    blades.forEach(b=>{
+      const sway=(Math.sin(wind+b.x*0.02)*0.5+gust*0.5)*15*b.sw;
+      ctx.strokeStyle=b.col; ctx.lineWidth=2; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(b.x,cv.height); ctx.quadraticCurveTo(b.x+sway*0.5,cv.height-b.h*0.6,b.x+sway,cv.height-b.h); ctx.stroke();
+    });
+    // 花（揺れる）
+    flowers.forEach(f=>{
+      const sway=Math.sin(wind+f.x*0.02)*5+gust*4;
+      const fx=f.x+sway, fy=f.y;
+      ctx.strokeStyle='#4d7c0f';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(f.x,fy+15);ctx.quadraticCurveTo((f.x+fx)/2,fy+7,fx,fy);ctx.stroke();
+      ctx.fillStyle=f.col;
+      for(let p=0;p<5;p++){const ang=f.sw+p/5*Math.PI*2;ctx.beginPath();ctx.ellipse(fx+Math.cos(ang)*f.r,fy+Math.sin(ang)*f.r,f.r*0.7,f.r*0.45,ang,0,Math.PI*2);ctx.fill();}
+      ctx.beginPath();ctx.arc(fx,fy,f.r*0.5,0,Math.PI*2);ctx.fillStyle='#fde047';ctx.fill();
+    });
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
+// ── 桜吹雪（春泥棒の情緒）: 淡い春空×上空の桜×はらはら舞い散る花びら ──────────
+function newSakuraPetal(cv, anywhere){
+  const cols=['#ffd1dc','#ffb7c5','#ff9eb5','#ffc8d6','#fbb6ce'];
+  return { x:Math.random()*cv.width, y:anywhere?Math.random()*cv.height:-12,
+    r:5+Math.random()*5, vx:-0.6-Math.random()*1.0, vy:0.8+Math.random()*1.2,
+    rot:Math.random()*Math.PI*2, rv:(Math.random()-0.5)*0.12, flap:Math.random()*Math.PI*2,
+    col:cols[Math.floor(Math.random()*cols.length)], a:0.7+Math.random()*0.3 };
+}
+function startSakuraBg(cv, ctx) {
+  const petals=Array.from({length:90},()=>newSakuraPetal(cv,true));
+  const blossoms=Array.from({length:10},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height*0.22,r:30+Math.random()*52,a:0.10+Math.random()*0.12}));
+  let wind=0;
+  (function draw(){
+    wind+=0.02; const gust=Math.sin(wind*0.5);
+    // 淡い春の空
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#fbe2ec');g.addColorStop(0.5,'#fdeef0');g.addColorStop(1,'#fff6f0');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 陽光
+    const sg=ctx.createRadialGradient(cv.width*0.78,cv.height*0.16,0,cv.width*0.78,cv.height*0.16,180);
+    sg.addColorStop(0,'rgba(255,250,235,0.5)');sg.addColorStop(1,'rgba(255,250,235,0)');
+    ctx.fillStyle=sg;ctx.fillRect(0,0,cv.width,cv.height);
+    // 上空の桜（ピンクの霞）
+    blossoms.forEach(b=>{ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fillStyle=`rgba(255,183,197,${b.a})`;ctx.fill();});
+    // 枝
+    ctx.strokeStyle='rgba(90,60,50,0.22)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,18);ctx.quadraticCurveTo(cv.width*0.3,38,cv.width*0.56,14);ctx.stroke();
+    // 花びら（ひらひら）
+    petals.forEach(p=>{
+      p.x+=p.vx+gust*1.2; p.y+=p.vy; p.rot+=p.rv; p.flap+=0.1;
+      if(p.y>cv.height+12){ Object.assign(p,newSakuraPetal(cv,false)); }
+      if(p.x>cv.width+12)p.x=-12; if(p.x<-12)p.x=cv.width+12;
+      const fw=p.r*(0.55+0.45*Math.abs(Math.cos(p.flap)));
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.beginPath();
+      ctx.moveTo(0,-p.r);
+      ctx.quadraticCurveTo(fw,-p.r*0.3,fw*0.7,p.r*0.6);
+      ctx.quadraticCurveTo(fw*0.2,p.r*0.4,0,p.r);
+      ctx.quadraticCurveTo(-fw*0.2,p.r*0.4,-fw*0.7,p.r*0.6);
+      ctx.quadraticCurveTo(-fw,-p.r*0.3,0,-p.r);
+      ctx.closePath();
+      ctx.globalAlpha=p.a; ctx.fillStyle=p.col; ctx.fill();
+      ctx.restore();
+    });
+    ctx.globalAlpha=1;
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
 function renderThemeGrid() {
   const el = document.getElementById('themeGrid');
   if (!el) return;
@@ -3961,6 +4164,9 @@ function renderThemeGrid() {
     river: `<div style="background:linear-gradient(180deg,#d6f5e3,#bdeaf2 55%,#9fdcec);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#0d9488;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #99f6e4;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #99f6e4;border-radius:3px;"></div><div style="position:absolute;bottom:6px;left:6px;width:12px;height:1.5px;background:rgba(255,255,255,.8);border-radius:2px;"></div><div style="position:absolute;bottom:10px;right:9px;width:8px;height:1.5px;background:rgba(255,255,255,.7);border-radius:2px;"></div></div>`,
     synth: `<div style="background:linear-gradient(180deg,#0a0a18,#120322);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#d946ef;border-radius:2px;box-shadow:0 0 6px #e879f9;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #f0abfc;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #f0abfc;border-radius:3px;"></div><div style="position:absolute;bottom:3px;left:5px;display:flex;align-items:flex-end;gap:1.5px;height:14px;"><span style="width:2px;height:6px;background:#22d3ee;"></span><span style="width:2px;height:11px;background:#5eead4;"></span><span style="width:2px;height:4px;background:#e879f9;"></span><span style="width:2px;height:9px;background:#22d3ee;"></span><span style="width:2px;height:13px;background:#e879f9;"></span><span style="width:2px;height:5px;background:#a78bfa;"></span></div></div>`,
     train: `<div style="background:linear-gradient(180deg,#2e2350,#6b4a6e 42%,#d77a52 68%,#f0a868);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#d97706;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="position:absolute;top:8px;right:7px;width:7px;height:7px;background:radial-gradient(#ffeaba,#ffb86c);border-radius:50%;"></div><div style="position:absolute;bottom:0;left:0;right:0;height:9px;background:linear-gradient(#2a1830,#140c16);"></div><div style="position:absolute;bottom:5px;left:9px;width:1.5px;height:12px;background:rgba(14,8,16,.92);"></div><div style="position:absolute;bottom:13px;left:5px;width:9px;height:1.5px;background:rgba(14,8,16,.92);"></div></div>`,
+    galaxy: `<div style="background:linear-gradient(180deg,#0a0a2e,#0c0f3a 55%,#080826);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#4338ca;border-radius:2px;box-shadow:0 0 6px #6366f1;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c7d2fe;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c7d2fe;border-radius:3px;"></div><div style="position:absolute;top:9px;left:8px;width:2px;height:2px;background:#fff;border-radius:50%;"></div><div style="position:absolute;top:14px;right:13px;width:1.5px;height:1.5px;background:#fde68a;border-radius:50%;"></div><div style="position:absolute;top:20px;left:18px;width:1.5px;height:1.5px;background:#fff;border-radius:50%;"></div><div style="position:absolute;bottom:6px;left:6px;width:11px;height:6px;background:#12102a;border-radius:1px;"></div><div style="position:absolute;bottom:8px;left:8px;width:2px;height:2px;background:#ffdc78;border-radius:50%;box-shadow:0 0 3px #ffdc78;"></div></div>`,
+    meadow: `<div style="background:linear-gradient(180deg,#bfe3f5,#cfeaa0 60%,#a7d84f);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#65a30d;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #d9f99d;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #d9f99d;border-radius:3px;"></div><div style="position:absolute;bottom:0;left:0;right:0;height:8px;background:repeating-linear-gradient(80deg,#65a30d 0 1.5px,transparent 1.5px 4px);"></div><div style="position:absolute;bottom:6px;left:8px;width:3px;height:3px;background:#f472b6;border-radius:50%;"></div><div style="position:absolute;bottom:7px;right:11px;width:3px;height:3px;background:#fbbf24;border-radius:50%;"></div><div style="position:absolute;bottom:5px;left:50%;width:3px;height:3px;background:#f87171;border-radius:50%;"></div></div>`,
+    sakura: `<div style="background:linear-gradient(180deg,#fbe2ec,#fdeef0 55%,#fff6f0);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#db2777;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #fbcfe8;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #fbcfe8;border-radius:3px;"></div><div style="position:absolute;top:8px;left:8px;width:4px;height:4px;background:#ffb7c5;border-radius:50% 0 50% 50%;transform:rotate(20deg);"></div><div style="position:absolute;top:17px;right:12px;width:3px;height:3px;background:#ff9eb5;border-radius:50% 0 50% 50%;transform:rotate(45deg);"></div><div style="position:absolute;bottom:9px;left:15px;width:3px;height:3px;background:#ffd1dc;border-radius:50% 0 50% 50%;transform:rotate(10deg);"></div><div style="position:absolute;bottom:14px;right:18px;width:3px;height:3px;background:#fbb6ce;border-radius:50% 0 50% 50%;transform:rotate(60deg);"></div></div>`,
   };
   el.innerHTML = THEMES.map(t => `
     <div class="theme-card ${current===t.id?'selected':''}" onclick="applyTheme('${t.id}');renderThemeGrid();" style="border-color:${current===t.id?t.bar:'#E5E7EB'};">
