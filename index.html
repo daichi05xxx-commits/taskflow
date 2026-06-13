@@ -49,6 +49,11 @@
     .page-header { margin-bottom: 24px; }
     .page-title { font-size: 20px; font-weight: 600; }
     .page-sub { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .dash-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .dash-clock { text-align: right; line-height: 1.1; }
+    .dash-clock-time { font-size: 30px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: .03em; }
+    .dash-clock-sec { font-size: 18px; font-weight: 600; color: var(--text-secondary); }
+    .dash-clock-label { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 
     .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
 
@@ -504,9 +509,15 @@
 
     <!-- ══ DASHBOARD ══ -->
     <div id="page-dashboard" class="page active">
-      <div class="page-header">
-        <div class="page-title">ダッシュボード</div>
-        <div class="page-sub" id="dashDate"></div>
+      <div class="page-header dash-header">
+        <div>
+          <div class="page-title">ダッシュボード</div>
+          <div class="page-sub" id="dashDate"></div>
+        </div>
+        <div class="dash-clock">
+          <div><span class="dash-clock-time" id="dashClockHM">--:--</span><span class="dash-clock-sec" id="dashClockS">:--</span></div>
+          <div class="dash-clock-label">現在時刻</div>
+        </div>
       </div>
       <div class="metrics" id="metrics"></div>
       <div class="dash-2col">
@@ -1105,6 +1116,7 @@ function navigate(page) {
 
 function renderPage(page) {
   if (_botTestMode) return;
+  if (page !== 'dashboard') stopDashClock();   // 他ページでは時計を止める
   if (page === 'dashboard') renderDashboard();
   if (page === 'tasks')     renderTasksPage();
   if (page === 'chat')      renderChatPage();
@@ -1114,10 +1126,34 @@ function renderPage(page) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
+let _dashClockTimer = null;
+
+function updateDashClock() {
+  const hm = document.getElementById('dashClockHM');
+  const sec = document.getElementById('dashClockS');
+  if (!hm || !sec) return;
+  const d = new Date();
+  const p = x => String(x).padStart(2,'0');
+  hm.textContent  = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  sec.textContent = `:${p(d.getSeconds())}`;
+}
+
+function startDashClock() {
+  updateDashClock();
+  if (_dashClockTimer) clearInterval(_dashClockTimer);
+  // 秒の変わり目に合わせて毎秒更新
+  _dashClockTimer = setInterval(updateDashClock, 1000);
+}
+
+function stopDashClock() {
+  if (_dashClockTimer) { clearInterval(_dashClockTimer); _dashClockTimer = null; }
+}
+
 function renderDashboard() {
   const d = new Date();
   document.getElementById('dashDate').textContent =
     d.toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' });
+  startDashClock();
   renderMetrics();
   renderScheduleTimeline();
   renderDeadlines();
