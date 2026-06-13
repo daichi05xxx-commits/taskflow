@@ -373,6 +373,38 @@
     [data-theme="nature"] .sidebar { border-right-color: #bbf7d0 !important; }
     [data-theme="nature"] .metric-card.accent { border-top: 3px solid #16a34a !important; }
 
+    /* ── 満天: 星空＆流星群（ダーク） ── */
+    [data-theme="star"] {
+      --primary: #6366f1; --primary-dark: #4338ca;
+      --primary-light: #e0e7ff; --primary-mid: #818cf8; --primary-pale: #c7d2fe;
+      --border: #c7d2fe;
+    }
+    [data-theme="star"] .sidebar { border-right-color: #c7d2fe !important; }
+    [data-theme="star"] .metric-card.accent { border-top: 3px solid #6366f1 !important; }
+    [data-theme="star"] .logo-dot { animation: starTwinkle 2.4s ease-in-out infinite; }
+    @keyframes starTwinkle { 0%,100%{ box-shadow:0 0 4px #818cf8; } 50%{ box-shadow:0 0 14px #c7d2fe, 0 0 26px rgba(129,140,248,.5); } }
+
+    /* ── 革命: レ・ミゼラブル（ダーク） ── */
+    [data-theme="lesmis"] {
+      --primary: #b91c1c; --primary-dark: #7f1d1d;
+      --primary-light: #fee2e2; --primary-mid: #ef4444; --primary-pale: #fecaca;
+      --border: #fca5a5;
+    }
+    [data-theme="lesmis"] .sidebar { border-right-color: #fca5a5 !important; }
+    [data-theme="lesmis"] .metric-card.accent { border-top: 3px solid #b91c1c !important; }
+    [data-theme="lesmis"] .logo-dot { animation: emberFlicker 1.6s ease-in-out infinite; }
+    @keyframes emberFlicker { 0%,100%{ box-shadow:0 0 5px #f59e0b; } 45%{ box-shadow:0 0 16px #f59e0b, 0 0 28px rgba(217,119,6,.5); } 70%{ box-shadow:0 0 7px #ea580c; } }
+
+    /* ダーク系テーマ：メイン背景の上に乗るヘッダー文字を明るく（カード内は白背景なので対象外） */
+    [data-theme="star"] .page-title, [data-theme="star"] .page-sub,
+    [data-theme="star"] .dash-clock-time, [data-theme="star"] .dash-clock-sec, [data-theme="star"] .dash-clock-label {
+      color: #eef2ff !important; text-shadow: 0 1px 6px rgba(0,0,0,.6);
+    }
+    [data-theme="lesmis"] .page-title, [data-theme="lesmis"] .page-sub,
+    [data-theme="lesmis"] .dash-clock-time, [data-theme="lesmis"] .dash-clock-sec, [data-theme="lesmis"] .dash-clock-label {
+      color: #fde7c7 !important; text-shadow: 0 1px 6px rgba(0,0,0,.6);
+    }
+
     /* ── Chat ── */
     .chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 140px); }
     .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; }
@@ -3261,6 +3293,8 @@ const THEMES = [
   { id:'math',    name:'数学',       bar:'#7c3aed' },
   { id:'water',   name:'水中',       bar:'#0891b2' },
   { id:'nature',  name:'大自然',     bar:'#16a34a' },
+  { id:'star',    name:'満天',       bar:'#6366f1' },
+  { id:'lesmis',  name:'革命',       bar:'#b91c1c' },
 ];
 
 let bgRaf = null;
@@ -3280,6 +3314,8 @@ function applyTheme(id) {
   if (id === 'math')   startMathBg(canvas, ctx);
   if (id === 'water')  startWaterBg(canvas, ctx);
   if (id === 'nature') startNatureBg(canvas, ctx);
+  if (id === 'star')   startStarBg(canvas, ctx);
+  if (id === 'lesmis') startLesMisBg(canvas, ctx);
 }
 
 function stopBgAnimation() {
@@ -3564,6 +3600,139 @@ function startNatureBg(cv, ctx) {
   })();
 }
 
+// ── 満天: 夜空×天の川×瞬く星×流星群 ───────────────────────────────────────────
+function startStarBg(cv, ctx) {
+  const starCols = ['255,255,255', '191,219,254', '253,230,138', '233,213,255'];
+  const stars = Array.from({length:240}, () => ({
+    x:Math.random()*cv.width, y:Math.random()*cv.height,
+    r:Math.random()*1.3+0.25, base:0.3+Math.random()*0.7,
+    tw:Math.random()*Math.PI*2, tws:0.008+Math.random()*0.04,
+    col:starCols[Math.floor(Math.random()*starCols.length)],
+  }));
+  // 天の川（斜めの帯に密集する微光星）
+  const milky = Array.from({length:160}, () => ({
+    t:Math.random(), spread:(Math.random()-0.5),
+    r:Math.random()*1.1+0.2, a:Math.random()*0.5+0.1,
+  }));
+  let meteors = [];
+  const spawnMeteor = (burst) => {
+    meteors.push({
+      x: Math.random()*cv.width*1.2 - cv.width*0.1,
+      y: -30 - Math.random()*80,
+      len: 130+Math.random()*200, speed: 7+Math.random()*8,
+      ang: Math.PI*(0.17+Math.random()*0.09),
+      life:0,
+    });
+    if (burst) for (let i=0;i<2+Math.random()*3;i++) setTimeout(()=>{ if(bgRaf) spawnMeteor(false); }, i*120);
+  };
+  (function draw() {
+    // 夜空グラデ
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#0b1026'); g.addColorStop(0.5,'#0a0e1f'); g.addColorStop(1,'#05060d');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 天の川
+    ctx.save();
+    ctx.translate(cv.width*0.5, cv.height*0.42); ctx.rotate(-0.5);
+    const mw=cv.width*1.7, mh=170;
+    const mg=ctx.createLinearGradient(0,-mh/2,0,mh/2);
+    mg.addColorStop(0,'rgba(120,140,200,0)'); mg.addColorStop(0.5,'rgba(150,165,215,0.10)'); mg.addColorStop(1,'rgba(120,140,200,0)');
+    ctx.fillStyle=mg; ctx.fillRect(-mw/2,-mh/2,mw,mh);
+    milky.forEach(m=>{
+      const x=-mw/2+m.t*mw, y=m.spread*mh*0.85;
+      ctx.beginPath(); ctx.arc(x,y,m.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(224,231,255,${m.a*0.6})`; ctx.fill();
+    });
+    ctx.restore();
+    // 瞬く星
+    stars.forEach(s=>{
+      s.tw+=s.tws;
+      const a=s.base*(0.5+0.5*Math.sin(s.tw));
+      ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(${s.col},${a})`;
+      if (s.r>1) { ctx.shadowColor=`rgba(${s.col},${a})`; ctx.shadowBlur=4; }
+      ctx.fill(); ctx.shadowBlur=0;
+    });
+    // 流星群
+    if (Math.random()<0.018) spawnMeteor(Math.random()<0.4);
+    meteors.forEach(m=>{
+      m.x+=Math.cos(m.ang)*m.speed; m.y+=Math.sin(m.ang)*m.speed; m.life++;
+      const tx=m.x-Math.cos(m.ang)*m.len, ty=m.y-Math.sin(m.ang)*m.len;
+      const grd=ctx.createLinearGradient(m.x,m.y,tx,ty);
+      grd.addColorStop(0,'rgba(255,255,255,0.95)');
+      grd.addColorStop(0.3,'rgba(196,221,255,0.5)');
+      grd.addColorStop(1,'rgba(196,221,255,0)');
+      ctx.strokeStyle=grd; ctx.lineWidth=2; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(m.x,m.y); ctx.lineTo(tx,ty); ctx.stroke();
+      ctx.beginPath(); ctx.arc(m.x,m.y,2,0,Math.PI*2);
+      ctx.fillStyle='#fff'; ctx.shadowColor='#bfe0ff'; ctx.shadowBlur=12; ctx.fill(); ctx.shadowBlur=0;
+    });
+    meteors = meteors.filter(m=> m.x<cv.width+250 && m.y<cv.height+250 && m.life<400);
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
+// ── 革命（レ・ミゼラブル）: 暗闇×三色旗×ろうそくの灯×舞う火の粉 ──────────────
+function startLesMisBg(cv, ctx) {
+  const embers = Array.from({length:64}, () => ({
+    x:Math.random()*cv.width, y:Math.random()*cv.height,
+    r:Math.random()*1.6+0.5, sp:0.4+Math.random()*1.2,
+    sway:Math.random()*Math.PI*2, a:0.3+Math.random()*0.5,
+  }));
+  const candles = Array.from({length:16}, (_,i) => ({
+    x:(i+0.5)/16*cv.width + (Math.random()-0.5)*36,
+    y:cv.height-18-Math.random()*46, h:18+Math.random()*18,
+    flick:Math.random()*Math.PI*2,
+  }));
+  let t=0;
+  const tricolor = (t) => {
+    const fw=cv.width*0.46, fh=cv.height*0.44, ox=cv.width*0.27, oy=cv.height*0.10;
+    const cols=['rgba(20,45,120,0.16)','rgba(235,238,245,0.11)','rgba(190,22,30,0.16)'];
+    for (let b=0;b<3;b++){
+      const x0=ox+b*fw/3;
+      ctx.beginPath();
+      for (let i=0;i<=22;i++){ const yy=oy+i/22*fh, w=Math.sin(i/22*Math.PI*2+t*1.4)*13; (i===0?ctx.moveTo:ctx.lineTo).call(ctx,x0+w,yy); }
+      for (let i=22;i>=0;i--){ const yy=oy+i/22*fh, w=Math.sin(i/22*Math.PI*2+t*1.4)*13; ctx.lineTo(x0+fw/3+w,yy); }
+      ctx.closePath(); ctx.fillStyle=cols[b]; ctx.fill();
+    }
+  };
+  (function draw() {
+    t+=0.02;
+    // 暗い背景（黒→深紅茶）
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#0a0506'); g.addColorStop(0.55,'#1a0a0c'); g.addColorStop(1,'#2b0f0c');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 奥に翻る三色旗
+    tricolor(t);
+    // 下からの赤い灯りグロー
+    const gl=ctx.createRadialGradient(cv.width/2,cv.height,40,cv.width/2,cv.height,cv.height*0.75);
+    gl.addColorStop(0,'rgba(185,42,22,0.30)'); gl.addColorStop(1,'rgba(185,42,22,0)');
+    ctx.fillStyle=gl; ctx.fillRect(0,0,cv.width,cv.height);
+    // ろうそくの炎
+    candles.forEach(c=>{
+      c.flick+=0.18+Math.random()*0.12;
+      const fh=c.h*(0.82+0.18*Math.sin(c.flick));
+      const fx=c.x+Math.sin(c.flick)*1.6;
+      const fg=ctx.createRadialGradient(fx,c.y-fh*0.4,1,fx,c.y-fh*0.4,fh);
+      fg.addColorStop(0,'rgba(255,232,150,0.92)');
+      fg.addColorStop(0.5,'rgba(255,150,40,0.5)');
+      fg.addColorStop(1,'rgba(255,80,20,0)');
+      ctx.fillStyle=fg;
+      ctx.beginPath(); ctx.ellipse(fx,c.y-fh*0.4,fh*0.32,fh*0.62,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(fx,c.y-2,1.5,0,Math.PI*2); ctx.fillStyle='rgba(255,245,210,0.9)'; ctx.fill();
+    });
+    // 舞い上がる火の粉
+    embers.forEach(e=>{
+      e.y-=e.sp; e.sway+=0.03; e.x+=Math.sin(e.sway)*0.5;
+      if (e.y<-10){ e.y=cv.height+10; e.x=Math.random()*cv.width; }
+      const a=e.a*(0.55+0.45*Math.sin(e.sway*2));
+      ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
+      ctx.fillStyle=`rgba(255,${(130+Math.random()*60)|0},50,${a})`;
+      ctx.shadowColor='#ff6a1a'; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0;
+    });
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
 function renderThemeGrid() {
   const el = document.getElementById('themeGrid');
   if (!el) return;
@@ -3574,6 +3743,8 @@ function renderThemeGrid() {
     math: `<div style="background:#fafaf8;flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;background-image:linear-gradient(rgba(124,58,237,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,.08) 1px,transparent 1px);background-size:10px 10px;"><div style="height:5px;background:#7c3aed;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c4b5fd;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c4b5fd;border-radius:3px;"></div></div>`,
     water: `<div style="background:linear-gradient(160deg,#cff3fb,#b8ecf7);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;"><div style="height:5px;background:#0891b2;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #a5f3fc;border-radius:3px;backdrop-filter:blur(4px);"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #a5f3fc;border-radius:3px;backdrop-filter:blur(4px);"></div></div>`,
     nature: `<div style="background:linear-gradient(160deg,#f0fbf4,#d8f0dc);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;"><div style="height:5px;background:#16a34a;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #bbf7d0;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #bbf7d0;border-radius:3px;"></div></div>`,
+    star: `<div style="background:linear-gradient(180deg,#0b1026,#05060d);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#6366f1;border-radius:2px;box-shadow:0 0 6px #818cf8;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c7d2fe;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c7d2fe;border-radius:3px;"></div><div style="position:absolute;top:7px;right:6px;width:15px;height:1.5px;background:linear-gradient(90deg,#fff,transparent);transform:rotate(33deg);box-shadow:0 0 4px #fff;"></div><div style="position:absolute;top:14px;right:13px;width:2px;height:2px;background:#fff;border-radius:50%;"></div><div style="position:absolute;top:9px;left:10px;width:1.5px;height:1.5px;background:#dbeafe;border-radius:50%;"></div></div>`,
+    lesmis: `<div style="background:linear-gradient(180deg,#0a0506,#2b0f0c);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#b91c1c;border-radius:2px;box-shadow:0 0 6px #ef4444;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fca5a5;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fca5a5;border-radius:3px;"></div><div style="position:absolute;bottom:4px;left:9px;width:4px;height:4px;background:radial-gradient(#ffe28a,#ff6a1a);border-radius:50%;box-shadow:0 0 6px #ff6a1a;"></div><div style="position:absolute;bottom:7px;right:11px;width:3px;height:3px;background:radial-gradient(#ffe28a,#ff6a1a);border-radius:50%;box-shadow:0 0 5px #ff6a1a;"></div></div>`,
   };
   el.innerHTML = THEMES.map(t => `
     <div class="theme-card ${current===t.id?'selected':''}" onclick="applyTheme('${t.id}');renderThemeGrid();" style="border-color:${current===t.id?t.bar:'#E5E7EB'};">
