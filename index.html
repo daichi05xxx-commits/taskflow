@@ -3866,26 +3866,29 @@ function startSynthBg(cv, ctx) {
   })();
 }
 
-// ── 車窓: 夕暮れ×沈む夕日×流れる遠景の稜線×通り過ぎる電柱（哀愁） ──────────────
+// ── 車窓: 夕暮れ×沈む夕日×流れる遠景の稜線×地面に立つ電柱（哀愁） ──────────────
 function startTrainBg(cv, ctx) {
   const layers=[
-    { col:'#5b4a72', sp:0.25, amp:42, base:0.62, k:0.006, off:0 },
-    { col:'#6e5575', sp:0.5,  amp:55, base:0.70, k:0.009, off:0 },
-    { col:'#7c5a66', sp:0.95, amp:34, base:0.80, k:0.013, off:0 },
+    { col:'#4a3c5e', sp:0.22, amp:38, base:0.50, k:0.006, off:0 },
+    { col:'#5b4866', sp:0.45, amp:50, base:0.58, k:0.009, off:0 },
+    { col:'#6b5360', sp:0.85, amp:30, base:0.66, k:0.013, off:0 },
   ];
   let near=0;
+  const groundBase = cv.height*0.80;
+  // 地面の上端ライン（緩い起伏＋オフセットで横スクロール）
+  const groundTopAt = (x, off) => groundBase + Math.sin((x+off)*0.004)*9 + Math.sin((x+off)*0.011+1)*4;
   (function draw() {
     // 夕暮れ空
     const g=ctx.createLinearGradient(0,0,0,cv.height);
-    g.addColorStop(0,'#2e2350'); g.addColorStop(0.4,'#6b4a6e'); g.addColorStop(0.66,'#d77a52'); g.addColorStop(1,'#f0a868');
+    g.addColorStop(0,'#2e2350'); g.addColorStop(0.40,'#6b4a6e'); g.addColorStop(0.62,'#d77a52'); g.addColorStop(0.80,'#f0a868'); g.addColorStop(1,'#caa06a');
     ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
-    // 沈む夕日
-    const sx=cv.width*0.72, sy=cv.height*0.58;
-    const sg=ctx.createRadialGradient(sx,sy,0,sx,sy,130);
-    sg.addColorStop(0,'rgba(255,230,170,0.9)'); sg.addColorStop(0.5,'rgba(255,180,110,0.35)'); sg.addColorStop(1,'rgba(255,180,110,0)');
-    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sx,sy,130,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(sx,sy,46,0,Math.PI*2); ctx.fillStyle='rgba(255,236,190,0.85)'; ctx.fill();
-    // 流れる遠景の稜線（パララックス）
+    // 沈む夕日（地平線寄り）
+    const sx=cv.width*0.72, sy=cv.height*0.66;
+    const sg=ctx.createRadialGradient(sx,sy,0,sx,sy,140);
+    sg.addColorStop(0,'rgba(255,232,175,0.95)'); sg.addColorStop(0.5,'rgba(255,180,110,0.35)'); sg.addColorStop(1,'rgba(255,180,110,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sx,sy,140,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx,sy,44,0,Math.PI*2); ctx.fillStyle='rgba(255,238,195,0.9)'; ctx.fill();
+    // 流れる遠景の稜線（パララックス・地面の奥）
     layers.forEach(L=>{
       L.off+=L.sp;
       ctx.beginPath(); ctx.moveTo(0,cv.height);
@@ -3895,22 +3898,47 @@ function startTrainBg(cv, ctx) {
       }
       ctx.lineTo(cv.width,cv.height); ctx.closePath(); ctx.fillStyle=L.col; ctx.fill();
     });
-    // 通り過ぎる電柱＋たわむ電線（手前・速い）
     near+=2.4;
-    const spacing=240, baseY=cv.height*0.88, shift=near%spacing;
-    const n=Math.ceil(cv.width/spacing)+2;
-    ctx.strokeStyle='rgba(18,10,22,0.8)'; ctx.fillStyle='rgba(18,10,22,0.8)';
-    let prev=null;
+    const goff=near;
+    // ── 近景の地面（土手）── 電柱の支え
+    ctx.beginPath(); ctx.moveTo(0,cv.height);
+    for(let x=0;x<=cv.width;x+=6){ ctx.lineTo(x,groundTopAt(x,goff)); }
+    ctx.lineTo(cv.width,cv.height); ctx.closePath();
+    const gg=ctx.createLinearGradient(0,groundBase-30,0,cv.height);
+    gg.addColorStop(0,'#3a2236'); gg.addColorStop(1,'#140c16');
+    ctx.fillStyle=gg; ctx.fill();
+    // 地面の縁に夕日の照り返し
+    ctx.strokeStyle='rgba(255,165,95,0.30)'; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    for(let x=0;x<=cv.width;x+=6){ const y=groundTopAt(x,goff); x===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+    ctx.stroke();
+    // ── 電柱＋電線（地面から生え、根元は土手にめり込む）──
+    const spacing=250, shift=near%spacing, n=Math.ceil(cv.width/spacing)+2;
+    let prev=null, prevTop=null;
     for(let i=-1;i<n;i++){
-      const x=cv.width - (i*spacing - shift);
-      ctx.fillRect(x-2,baseY-92,4,92);
-      ctx.fillRect(x-16,baseY-92,32,4); ctx.fillRect(x-12,baseY-80,24,3);
+      const x=cv.width-(i*spacing-shift);
+      const gy=groundTopAt(x,goff);
+      const top=gy-150;
+      ctx.fillStyle='rgba(14,8,16,0.92)';
+      ctx.fillRect(x-3,top,6,(gy+12)-top);   // 柱（根元を地面に埋める）
+      ctx.fillRect(x-20,top+14,40,5);         // 上腕木
+      ctx.fillRect(x-15,top+30,30,4);         // 下腕木
       if(prev!==null){
-        ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(prev,baseY-88); ctx.quadraticCurveTo((prev+x)/2,baseY-66,x,baseY-88); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(prev,baseY-76); ctx.quadraticCurveTo((prev+x)/2,baseY-56,x,baseY-76); ctx.stroke();
+        ctx.strokeStyle='rgba(12,7,14,0.8)'; ctx.lineWidth=1.4;
+        const sag=(prevTop+top)/2;
+        ctx.beginPath(); ctx.moveTo(prev,prevTop+16); ctx.quadraticCurveTo((prev+x)/2,sag+42,x,top+16); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(prev,prevTop+32); ctx.quadraticCurveTo((prev+x)/2,sag+58,x,top+32); ctx.stroke();
       }
-      prev=x;
+      prev=x; prevTop=top;
+    }
+    // ── 草（地面の縁に生えて一緒に流れる）──
+    ctx.strokeStyle='rgba(10,6,12,0.65)'; ctx.lineWidth=1.2;
+    const blade=14;
+    for(let x=-(near%blade); x<cv.width; x+=blade){
+      const gy=groundTopAt(x,goff);
+      const h=4+(((x|0)*13)%8);
+      const lean=Math.sin((x+near)*0.05)*1.5;
+      ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x+lean,gy-h); ctx.stroke();
     }
     // フィルム粒子（哀愁）
     for(let i=0;i<10;i++){ ctx.fillStyle=`rgba(255,240,210,${Math.random()*0.04})`; ctx.fillRect(Math.random()*cv.width,Math.random()*cv.height,1,1); }
@@ -3932,7 +3960,7 @@ function renderThemeGrid() {
     lesmis: `<div style="background:linear-gradient(180deg,#0a0506,#2b0f0c);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#b91c1c;border-radius:2px;box-shadow:0 0 6px #ef4444;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fca5a5;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fca5a5;border-radius:3px;"></div><div style="position:absolute;bottom:4px;left:9px;width:4px;height:4px;background:radial-gradient(#ffe28a,#ff6a1a);border-radius:50%;box-shadow:0 0 6px #ff6a1a;"></div><div style="position:absolute;bottom:7px;right:11px;width:3px;height:3px;background:radial-gradient(#ffe28a,#ff6a1a);border-radius:50%;box-shadow:0 0 5px #ff6a1a;"></div></div>`,
     river: `<div style="background:linear-gradient(180deg,#d6f5e3,#bdeaf2 55%,#9fdcec);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#0d9488;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #99f6e4;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #99f6e4;border-radius:3px;"></div><div style="position:absolute;bottom:6px;left:6px;width:12px;height:1.5px;background:rgba(255,255,255,.8);border-radius:2px;"></div><div style="position:absolute;bottom:10px;right:9px;width:8px;height:1.5px;background:rgba(255,255,255,.7);border-radius:2px;"></div></div>`,
     synth: `<div style="background:linear-gradient(180deg,#0a0a18,#120322);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#d946ef;border-radius:2px;box-shadow:0 0 6px #e879f9;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #f0abfc;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #f0abfc;border-radius:3px;"></div><div style="position:absolute;bottom:3px;left:5px;display:flex;align-items:flex-end;gap:1.5px;height:14px;"><span style="width:2px;height:6px;background:#22d3ee;"></span><span style="width:2px;height:11px;background:#5eead4;"></span><span style="width:2px;height:4px;background:#e879f9;"></span><span style="width:2px;height:9px;background:#22d3ee;"></span><span style="width:2px;height:13px;background:#e879f9;"></span><span style="width:2px;height:5px;background:#a78bfa;"></span></div></div>`,
-    train: `<div style="background:linear-gradient(180deg,#2e2350,#6b4a6e 42%,#d77a52 70%,#f0a868);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#d97706;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="position:absolute;top:8px;right:7px;width:7px;height:7px;background:radial-gradient(#ffeaba,#ffb86c);border-radius:50%;"></div><div style="position:absolute;bottom:3px;left:8px;width:1.5px;height:11px;background:rgba(20,12,24,.75);"></div><div style="position:absolute;bottom:11px;left:4px;width:9px;height:1.5px;background:rgba(20,12,24,.75);"></div></div>`,
+    train: `<div style="background:linear-gradient(180deg,#2e2350,#6b4a6e 42%,#d77a52 68%,#f0a868);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#d97706;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="position:absolute;top:8px;right:7px;width:7px;height:7px;background:radial-gradient(#ffeaba,#ffb86c);border-radius:50%;"></div><div style="position:absolute;bottom:0;left:0;right:0;height:9px;background:linear-gradient(#2a1830,#140c16);"></div><div style="position:absolute;bottom:5px;left:9px;width:1.5px;height:12px;background:rgba(14,8,16,.92);"></div><div style="position:absolute;bottom:13px;left:5px;width:9px;height:1.5px;background:rgba(14,8,16,.92);"></div></div>`,
   };
   el.innerHTML = THEMES.map(t => `
     <div class="theme-card ${current===t.id?'selected':''}" onclick="applyTheme('${t.id}');renderThemeGrid();" style="border-color:${current===t.id?t.bar:'#E5E7EB'};">
