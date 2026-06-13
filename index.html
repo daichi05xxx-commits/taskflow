@@ -405,6 +405,45 @@
       color: #fde7c7 !important; text-shadow: 0 1px 6px rgba(0,0,0,.6);
     }
 
+    /* ── せせらぎ: 日本の夏の清流（ライト） ── */
+    [data-theme="river"] {
+      --primary: #0d9488; --primary-dark: #0f766e;
+      --primary-light: #ccfbf1; --primary-mid: #2dd4bf; --primary-pale: #99f6e4;
+      --border: #99f6e4;
+    }
+    [data-theme="river"] .sidebar { border-right-color: #99f6e4 !important; }
+    [data-theme="river"] .metric-card.accent { border-top: 3px solid #0d9488 !important; }
+
+    /* ── 機械音楽: ボカロ/DTM（ダーク） ── */
+    [data-theme="synth"] {
+      --primary: #d946ef; --primary-dark: #a21caf;
+      --primary-light: #fae8ff; --primary-mid: #e879f9; --primary-pale: #f5d0fe;
+      --border: #f0abfc;
+    }
+    [data-theme="synth"] .sidebar { border-right-color: #f0abfc !important; }
+    [data-theme="synth"] .metric-card.accent { border-top: 3px solid #d946ef !important; }
+    [data-theme="synth"] .logo-dot { animation: synthBeat 1.1s ease-in-out infinite; }
+    @keyframes synthBeat { 0%,100%{ box-shadow:0 0 5px #22d3ee; } 50%{ box-shadow:0 0 16px #e879f9, 0 0 28px rgba(34,211,238,.5); } }
+
+    /* ── 車窓: 夕暮れの流れる風景（ダーク） ── */
+    [data-theme="train"] {
+      --primary: #d97706; --primary-dark: #b45309;
+      --primary-light: #fef3c7; --primary-mid: #fbbf24; --primary-pale: #fde68a;
+      --border: #fcd34d;
+    }
+    [data-theme="train"] .sidebar { border-right-color: #fcd34d !important; }
+    [data-theme="train"] .metric-card.accent { border-top: 3px solid #d97706 !important; }
+
+    /* 機械音楽・車窓もダーク：ヘッダー文字を明るく */
+    [data-theme="synth"] .page-title, [data-theme="synth"] .page-sub,
+    [data-theme="synth"] .dash-clock-time, [data-theme="synth"] .dash-clock-sec, [data-theme="synth"] .dash-clock-label {
+      color: #cffafe !important; text-shadow: 0 1px 6px rgba(0,0,0,.6);
+    }
+    [data-theme="train"] .page-title, [data-theme="train"] .page-sub,
+    [data-theme="train"] .dash-clock-time, [data-theme="train"] .dash-clock-sec, [data-theme="train"] .dash-clock-label {
+      color: #fde9c0 !important; text-shadow: 0 1px 6px rgba(0,0,0,.55);
+    }
+
     /* ── Chat ── */
     .chat-wrap { display: flex; flex-direction: column; height: calc(100vh - 140px); }
     .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 4px 0 12px; }
@@ -3295,6 +3334,9 @@ const THEMES = [
   { id:'nature',  name:'大自然',     bar:'#16a34a' },
   { id:'star',    name:'満天',       bar:'#6366f1' },
   { id:'lesmis',  name:'革命',       bar:'#b91c1c' },
+  { id:'river',   name:'せせらぎ',   bar:'#0d9488' },
+  { id:'synth',   name:'機械音楽',   bar:'#d946ef' },
+  { id:'train',   name:'車窓',       bar:'#d97706' },
 ];
 
 let bgRaf = null;
@@ -3316,6 +3358,9 @@ function applyTheme(id) {
   if (id === 'nature') startNatureBg(canvas, ctx);
   if (id === 'star')   startStarBg(canvas, ctx);
   if (id === 'lesmis') startLesMisBg(canvas, ctx);
+  if (id === 'river')  startRiverBg(canvas, ctx);
+  if (id === 'synth')  startSynthBg(canvas, ctx);
+  if (id === 'train')  startTrainBg(canvas, ctx);
 }
 
 function stopBgAnimation() {
@@ -3733,6 +3778,146 @@ function startLesMisBg(cv, ctx) {
   })();
 }
 
+// ── せせらぎ: 木漏れ日×川面のきらめき×流れる木の葉 ─────────────────────────────
+function startRiverBg(cv, ctx) {
+  const sparks = Array.from({length:75}, () => ({
+    x:Math.random()*cv.width, y:cv.height*0.32+Math.random()*cv.height*0.68,
+    w:6+Math.random()*22, ph:Math.random()*Math.PI*2, sp:0.01+Math.random()*0.03,
+    drift:0.2+Math.random()*0.6,
+  }));
+  const leaves = Array.from({length:10}, () => ({
+    x:Math.random()*cv.width, y:cv.height*0.4+Math.random()*cv.height*0.55,
+    r:5+Math.random()*7, sp:0.4+Math.random()*0.9, rot:Math.random()*Math.PI*2,
+    rv:(Math.random()-0.5)*0.04, wob:Math.random()*Math.PI*2,
+    col:['#4ade80','#22c55e','#16a34a','#65a30d'][Math.floor(Math.random()*4)],
+  }));
+  const bokeh = Array.from({length:7}, () => ({
+    x:Math.random()*cv.width, y:Math.random()*cv.height*0.4, r:30+Math.random()*60, ph:Math.random()*Math.PI*2,
+  }));
+  (function draw() {
+    // 上＝木々の緑、下＝清流
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#d6f5e3'); g.addColorStop(0.35,'#cdefe8'); g.addColorStop(0.55,'#bdeaf2'); g.addColorStop(1,'#9fdcec');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 木漏れ日
+    bokeh.forEach(b=>{ b.ph+=0.008; const a=0.10+0.06*Math.sin(b.ph);
+      const rg=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r);
+      rg.addColorStop(0,`rgba(255,255,200,${a})`); rg.addColorStop(1,'rgba(255,255,200,0)');
+      ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+    });
+    // 川面のきらめき
+    sparks.forEach(s=>{ s.ph+=s.sp; s.x+=s.drift; if(s.x>cv.width+30)s.x=-30;
+      const a=0.22+0.35*Math.abs(Math.sin(s.ph));
+      ctx.fillStyle=`rgba(255,255,255,${a})`;
+      ctx.beginPath(); ctx.ellipse(s.x,s.y,s.w,1.4,0,0,Math.PI*2); ctx.fill();
+    });
+    // 流れる木の葉
+    leaves.forEach(l=>{ l.x+=l.sp; l.wob+=0.04; l.y+=Math.sin(l.wob)*0.3; l.rot+=l.rv;
+      if(l.x>cv.width+20){ l.x=-20; l.y=cv.height*0.4+Math.random()*cv.height*0.55; }
+      ctx.save(); ctx.translate(l.x,l.y); ctx.rotate(l.rot); ctx.globalAlpha=0.8;
+      ctx.beginPath(); ctx.ellipse(0,0,l.r,l.r*0.5,0,0,Math.PI*2); ctx.fillStyle=l.col; ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.4)'; ctx.lineWidth=0.7;
+      ctx.beginPath(); ctx.moveTo(-l.r,0); ctx.lineTo(l.r,0); ctx.stroke();
+      ctx.restore();
+    });
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
+// ── 機械音楽: グリッド×ネオン波形×流れるノート×イコライザー ─────────────────
+function startSynthBg(cv, ctx) {
+  const barN=48;
+  const bars=Array.from({length:barN},()=>({ ph:Math.random()*Math.PI*2, sp:0.05+Math.random()*0.12 }));
+  const noteCols=['#22d3ee','#e879f9','#a78bfa','#34d399'];
+  const notes=[];
+  const waves=[{a:30,k:0.012,sp:0.05,col:'rgba(34,211,238,0.5)'},{a:22,k:0.018,sp:-0.07,col:'rgba(232,121,249,0.45)'}];
+  let t=0;
+  (function draw() {
+    t++;
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#0a0a18'); g.addColorStop(0.6,'#120322'); g.addColorStop(1,'#0a0118');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // スクロールするグリッド
+    ctx.strokeStyle='rgba(168,85,247,0.08)'; ctx.lineWidth=1;
+    const gs=40, ox=(t*1.2)%gs;
+    for(let x=-ox;x<cv.width;x+=gs){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,cv.height); ctx.stroke(); }
+    for(let y=0;y<cv.height;y+=gs){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(cv.width,y); ctx.stroke(); }
+    // ネオン波形
+    waves.forEach(w=>{
+      ctx.beginPath();
+      for(let x=0;x<=cv.width;x+=6){ const y=cv.height*0.42+Math.sin(x*w.k+t*w.sp)*w.a*Math.sin(x*0.003+t*0.02); x===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+      ctx.strokeStyle=w.col; ctx.lineWidth=2; ctx.shadowColor=w.col; ctx.shadowBlur=10; ctx.stroke(); ctx.shadowBlur=0;
+    });
+    // ピアノロールのノート（右→左へ）
+    if(t%14===0) notes.push({ x:cv.width+10, y:60+Math.random()*(cv.height-180), w:30+Math.random()*70, col:noteCols[Math.floor(Math.random()*noteCols.length)] });
+    for(let i=notes.length-1;i>=0;i--){ const nt=notes[i]; nt.x-=3.2;
+      ctx.fillStyle=nt.col; ctx.shadowColor=nt.col; ctx.shadowBlur=8; ctx.globalAlpha=0.8;
+      ctx.fillRect(nt.x,nt.y,nt.w,7); ctx.globalAlpha=1; ctx.shadowBlur=0;
+      if(nt.x+nt.w<0) notes.splice(i,1);
+    }
+    // 下部イコライザーバー
+    const bw=cv.width/barN;
+    bars.forEach((b,i)=>{ b.ph+=b.sp; const h=(0.2+0.8*Math.abs(Math.sin(b.ph)))*cv.height*0.28;
+      const gg=ctx.createLinearGradient(0,cv.height-h,0,cv.height);
+      gg.addColorStop(0,'rgba(34,211,238,0)'); gg.addColorStop(0.3,'rgba(34,211,238,0.5)'); gg.addColorStop(1,'rgba(232,121,249,0.7)');
+      ctx.fillStyle=gg; ctx.fillRect(i*bw+1,cv.height-h,bw-2,h);
+    });
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
+// ── 車窓: 夕暮れ×沈む夕日×流れる遠景の稜線×通り過ぎる電柱（哀愁） ──────────────
+function startTrainBg(cv, ctx) {
+  const layers=[
+    { col:'#5b4a72', sp:0.25, amp:42, base:0.62, k:0.006, off:0 },
+    { col:'#6e5575', sp:0.5,  amp:55, base:0.70, k:0.009, off:0 },
+    { col:'#7c5a66', sp:0.95, amp:34, base:0.80, k:0.013, off:0 },
+  ];
+  let near=0;
+  (function draw() {
+    // 夕暮れ空
+    const g=ctx.createLinearGradient(0,0,0,cv.height);
+    g.addColorStop(0,'#2e2350'); g.addColorStop(0.4,'#6b4a6e'); g.addColorStop(0.66,'#d77a52'); g.addColorStop(1,'#f0a868');
+    ctx.fillStyle=g; ctx.fillRect(0,0,cv.width,cv.height);
+    // 沈む夕日
+    const sx=cv.width*0.72, sy=cv.height*0.58;
+    const sg=ctx.createRadialGradient(sx,sy,0,sx,sy,130);
+    sg.addColorStop(0,'rgba(255,230,170,0.9)'); sg.addColorStop(0.5,'rgba(255,180,110,0.35)'); sg.addColorStop(1,'rgba(255,180,110,0)');
+    ctx.fillStyle=sg; ctx.beginPath(); ctx.arc(sx,sy,130,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(sx,sy,46,0,Math.PI*2); ctx.fillStyle='rgba(255,236,190,0.85)'; ctx.fill();
+    // 流れる遠景の稜線（パララックス）
+    layers.forEach(L=>{
+      L.off+=L.sp;
+      ctx.beginPath(); ctx.moveTo(0,cv.height);
+      for(let x=0;x<=cv.width;x+=8){
+        const y=cv.height*L.base + Math.sin((x+L.off)*L.k)*L.amp + Math.sin((x+L.off)*L.k*2.3+1)*L.amp*0.3;
+        ctx.lineTo(x,y);
+      }
+      ctx.lineTo(cv.width,cv.height); ctx.closePath(); ctx.fillStyle=L.col; ctx.fill();
+    });
+    // 通り過ぎる電柱＋たわむ電線（手前・速い）
+    near+=2.4;
+    const spacing=240, baseY=cv.height*0.88, shift=near%spacing;
+    const n=Math.ceil(cv.width/spacing)+2;
+    ctx.strokeStyle='rgba(18,10,22,0.8)'; ctx.fillStyle='rgba(18,10,22,0.8)';
+    let prev=null;
+    for(let i=-1;i<n;i++){
+      const x=cv.width - (i*spacing - shift);
+      ctx.fillRect(x-2,baseY-92,4,92);
+      ctx.fillRect(x-16,baseY-92,32,4); ctx.fillRect(x-12,baseY-80,24,3);
+      if(prev!==null){
+        ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(prev,baseY-88); ctx.quadraticCurveTo((prev+x)/2,baseY-66,x,baseY-88); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(prev,baseY-76); ctx.quadraticCurveTo((prev+x)/2,baseY-56,x,baseY-76); ctx.stroke();
+      }
+      prev=x;
+    }
+    // フィルム粒子（哀愁）
+    for(let i=0;i<10;i++){ ctx.fillStyle=`rgba(255,240,210,${Math.random()*0.04})`; ctx.fillRect(Math.random()*cv.width,Math.random()*cv.height,1,1); }
+    bgRaf=requestAnimationFrame(draw);
+  })();
+}
+
 function renderThemeGrid() {
   const el = document.getElementById('themeGrid');
   if (!el) return;
@@ -3745,6 +3930,9 @@ function renderThemeGrid() {
     nature: `<div style="background:linear-gradient(160deg,#f0fbf4,#d8f0dc);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;"><div style="height:5px;background:#16a34a;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #bbf7d0;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #bbf7d0;border-radius:3px;"></div></div>`,
     star: `<div style="background:linear-gradient(180deg,#0b1026,#05060d);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#6366f1;border-radius:2px;box-shadow:0 0 6px #818cf8;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c7d2fe;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #c7d2fe;border-radius:3px;"></div><div style="position:absolute;top:7px;right:6px;width:15px;height:1.5px;background:linear-gradient(90deg,#fff,transparent);transform:rotate(33deg);box-shadow:0 0 4px #fff;"></div><div style="position:absolute;top:14px;right:13px;width:2px;height:2px;background:#fff;border-radius:50%;"></div><div style="position:absolute;top:9px;left:10px;width:1.5px;height:1.5px;background:#dbeafe;border-radius:50%;"></div></div>`,
     lesmis: `<div style="background:linear-gradient(180deg,#0a0506,#2b0f0c);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#b91c1c;border-radius:2px;box-shadow:0 0 6px #ef4444;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fca5a5;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fca5a5;border-radius:3px;"></div><div style="position:absolute;bottom:4px;left:9px;width:4px;height:4px;background:radial-gradient(#ffe28a,#ff6a1a);border-radius:50%;box-shadow:0 0 6px #ff6a1a;"></div><div style="position:absolute;bottom:7px;right:11px;width:3px;height:3px;background:radial-gradient(#ffe28a,#ff6a1a);border-radius:50%;box-shadow:0 0 5px #ff6a1a;"></div></div>`,
+    river: `<div style="background:linear-gradient(180deg,#d6f5e3,#bdeaf2 55%,#9fdcec);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#0d9488;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #99f6e4;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #99f6e4;border-radius:3px;"></div><div style="position:absolute;bottom:6px;left:6px;width:12px;height:1.5px;background:rgba(255,255,255,.8);border-radius:2px;"></div><div style="position:absolute;bottom:10px;right:9px;width:8px;height:1.5px;background:rgba(255,255,255,.7);border-radius:2px;"></div></div>`,
+    synth: `<div style="background:linear-gradient(180deg,#0a0a18,#120322);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#d946ef;border-radius:2px;box-shadow:0 0 6px #e879f9;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #f0abfc;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.92);border:1px solid #f0abfc;border-radius:3px;"></div><div style="position:absolute;bottom:3px;left:5px;display:flex;align-items:flex-end;gap:1.5px;height:14px;"><span style="width:2px;height:6px;background:#22d3ee;"></span><span style="width:2px;height:11px;background:#5eead4;"></span><span style="width:2px;height:4px;background:#e879f9;"></span><span style="width:2px;height:9px;background:#22d3ee;"></span><span style="width:2px;height:13px;background:#e879f9;"></span><span style="width:2px;height:5px;background:#a78bfa;"></span></div></div>`,
+    train: `<div style="background:linear-gradient(180deg,#2e2350,#6b4a6e 42%,#d77a52 70%,#f0a868);flex:1;padding:5px;display:flex;flex-direction:column;gap:3px;position:relative;overflow:hidden;"><div style="height:5px;background:#d97706;border-radius:2px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="flex:1;background:rgba(255,255,255,.9);border:1px solid #fcd34d;border-radius:3px;"></div><div style="position:absolute;top:8px;right:7px;width:7px;height:7px;background:radial-gradient(#ffeaba,#ffb86c);border-radius:50%;"></div><div style="position:absolute;bottom:3px;left:8px;width:1.5px;height:11px;background:rgba(20,12,24,.75);"></div><div style="position:absolute;bottom:11px;left:4px;width:9px;height:1.5px;background:rgba(20,12,24,.75);"></div></div>`,
   };
   el.innerHTML = THEMES.map(t => `
     <div class="theme-card ${current===t.id?'selected':''}" onclick="applyTheme('${t.id}');renderThemeGrid();" style="border-color:${current===t.id?t.bar:'#E5E7EB'};">
