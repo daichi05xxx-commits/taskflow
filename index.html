@@ -529,6 +529,10 @@
     .auth-logo p { font-size:13px;color:var(--text-secondary);margin-top:4px; }
     .auth-err { color:var(--urgent);font-size:12px;min-height:18px;margin-bottom:6px; }
     .auth-info { color:var(--primary);font-size:12px;min-height:18px;margin-bottom:6px; }
+    .btn-google { display:flex;align-items:center;justify-content:center;padding:10px 14px;font-size:13px;font-weight:500;color:#3c4043;background:#fff;border:1px solid #dadce0;border-radius:var(--radius-sm);cursor:pointer;transition:background .1s,box-shadow .1s; }
+    .btn-google:hover { background:#f7f8f8;box-shadow:0 1px 2px rgba(60,64,67,.15); }
+    .auth-divider { display:flex;align-items:center;gap:10px;color:var(--text-secondary);font-size:11px;margin-bottom:12px; }
+    .auth-divider::before, .auth-divider::after { content:'';flex:1;height:1px;background:var(--border); }
 
     /* ── Sidebar user bar ── */
     .sidebar-user { padding:10px 12px; display:flex; align-items:center; gap:8px; border-top:1px solid var(--border); }
@@ -861,7 +865,8 @@
 alter table user_data enable row level security;
 create policy "own" on user_data for all
   using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);</pre>
+  with check (auth.uid() = user_id);
+alter publication supabase_realtime add table user_data;</pre>
             <button onclick="copySetupSQL()" class="btn-ghost" style="font-size:11px;"><i class="ti ti-copy"></i> SQLをコピー</button><br>
             <b style="color:var(--text-primary);">④ </b>上のフォームにURLとキーを入力 → ログインまたは新規アカウント作成。<br>
             <b style="color:var(--text-primary);">⑤ </b>他のデバイスでも同じURL・キーを入力して同じメールアドレスでログインするとデータが同期されます。
@@ -1037,18 +1042,11 @@ create policy "own" on user_data for all
     </div>
     <div class="auth-err"  id="authError"></div>
     <div class="auth-info" id="authMsg"></div>
-    <div class="form-group">
-      <label class="form-label">メールアドレス</label>
-      <input type="email" id="authEmail" class="form-input" placeholder="your@email.com">
-    </div>
-    <div class="form-group">
-      <label class="form-label">パスワード</label>
-      <input type="password" id="authPass" class="form-input" placeholder="••••••••"
-        onkeydown="if(event.key==='Enter')authLogin()">
-    </div>
-    <button class="btn-primary" style="width:100%;margin-bottom:8px;" onclick="authLogin()"><i class="ti ti-login"></i> ログイン</button>
-    <button class="btn-ghost"   style="width:100%;margin-bottom:8px;" onclick="authSignup()"><i class="ti ti-user-plus"></i> 新規アカウント作成</button>
-    <button class="btn-ghost"   style="width:100%;font-size:11px;color:var(--text-secondary);" onclick="closeAuthOverlay()">ログインせずに使用する（このデバイスのみ）</button>
+    <button class="btn-google" style="width:100%;margin-bottom:14px;" onclick="authGoogle()">
+      <svg width="16" height="16" viewBox="0 0 48 48" style="vertical-align:-3px;margin-right:8px;"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4.5 24 4.5 13.2 4.5 4.5 13.2 4.5 24S13.2 43.5 24 43.5 43.5 34.8 43.5 24c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6.5 29.5 4.5 24 4.5c-7.7 0-14.3 4.4-17.7 10.2z"/><path fill="#4CAF50" d="M24 43.5c5.4 0 10.3-2 14-5.3l-6.5-5.5c-2 1.5-4.6 2.3-7.5 2.3-5.2 0-9.6-3.3-11.2-8l-6.5 5C9.6 39.1 16.2 43.5 24 43.5z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4 5.5l6.5 5.5C41.4 36.6 43.5 31 43.5 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
+      Googleでログイン
+    </button>
+    <button class="btn-ghost" style="width:100%;font-size:11px;color:var(--text-secondary);" onclick="closeAuthOverlay()">ログインせずに使用する（このデバイスのみ）</button>
   </div>
 </div>
 
@@ -1058,8 +1056,21 @@ const KEYS = { tasks:'tf_tasks', schedule:'tf_sched', settings:'tf_settings', to
 const dbGet = (k, d=[]) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
 const dbSet = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
+// ── Cross-device sync config ──────────────────────────────────────────────
+// ここにSupabaseプロジェクトのURLとanon(public)キーを直接書くと、
+// どの端末で公開URLを開いても自動で同じプロジェクトに接続されます。
+// anonキーは「公開前提」のキーで、RLS（行レベルセキュリティ）でデータが守られるため
+// 公開リポジトリに置いても安全です。
+const SUPABASE_URL      = 'https://lwtqotyunyhxesbjhbrp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3dHFvdHl1bnloeGVzYmpoYnJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNDMwMDQsImV4cCI6MjA5NjgxOTAwNH0.HGFnLAAWQ5UhG-rJ17qLbgZHlRFj9VjgAWy88at8YK8';
+
 // Supabase state (populated later)
-let supaClient = null, currentUser = null, syncDebounceTimer = null;
+let supaClient = null, currentUser = null, syncDebounceTimer = null, _realtimeChan = null;
+
+// 有効な接続情報（埋め込み優先 → なければ端末ごとの設定）
+const supaUrlEff = () => SUPABASE_URL || getSettings().supaUrl || '';
+const supaKeyEff = () => SUPABASE_ANON_KEY || getSettings().supaKey || '';
+const supaConfigured = () => !!(supaUrlEff() && supaKeyEff());
 
 // テスト実行中は同期・再描画を止める（フィクスチャ漏洩・UIちらつき防止）
 let _botTestMode = false;
@@ -4338,12 +4349,33 @@ function scheduleSync() {
 }
 
 function initSupabase() {
-  const s = getSettings();
-  const url = s.supaUrl || '', key = s.supaKey || '';
+  const url = supaUrlEff(), key = supaKeyEff();
   if (!url || !key) return;
   try {
     supaClient = window.supabase.createClient(url, key);
   } catch(e) { console.warn('Supabase init failed', e); supaClient = null; }
+}
+
+// 端末間でリアルタイムに反映：自分のレコードの変更を購読し、変わったら取り込む
+function startRealtimeSync() {
+  if (!supaClient || !currentUser || _realtimeChan) return;
+  try {
+    _realtimeChan = supaClient
+      .channel('user_data_' + currentUser.id)
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'user_data', filter: 'user_id=eq.' + currentUser.id },
+        () => { syncDown().then(() => renderPage(currentPage)); })
+      .subscribe();
+  } catch(e) { console.warn('realtime subscribe failed', e); }
+}
+function stopRealtimeSync() {
+  if (_realtimeChan && supaClient) { try { supaClient.removeChannel(_realtimeChan); } catch(_){} }
+  _realtimeChan = null;
+}
+// 端末を離れるときは保留中の変更を即アップ、戻ってきたら最新を取り込む（取りこぼし防止）
+function flushSync() {
+  if (syncDebounceTimer) { clearTimeout(syncDebounceTimer); syncDebounceTimer = null; }
+  syncUp();
 }
 
 async function checkAuthState() {
@@ -4351,25 +4383,36 @@ async function checkAuthState() {
   try {
     const { data: { session } } = await supaClient.auth.getSession();
     if (session?.user) {
-      currentUser = session.user;
-      updateAuthUI(true);
-      await syncDown();
-      renderPage(currentPage);
+      await onAuthenticated(session.user);
     } else {
       currentUser = null;
       updateAuthUI(false);
       showAuthOverlay();
     }
-    supaClient.auth.onAuthStateChange((_ev, session) => {
-      currentUser = session?.user ?? null;
-      updateAuthUI(!!currentUser);
+    supaClient.auth.onAuthStateChange((ev, session) => {
+      if (ev === 'SIGNED_IN' && session?.user) {
+        onAuthenticated(session.user);          // Googleログイン等のリダイレクト復帰を拾う
+      } else if (ev === 'SIGNED_OUT') {
+        currentUser = null; _authedUserId = null; stopRealtimeSync(); updateAuthUI(false);
+      }
     });
   } catch(e) { console.warn('checkAuthState failed', e); }
 }
 
+// ログイン確定後の共通処理（同じセッションで二重に走らないようガード）
+let _authedUserId = null;
+async function onAuthenticated(user) {
+  currentUser = user;
+  updateAuthUI(true);
+  if (_authedUserId === user.id) return;   // 既に初期化済み
+  _authedUserId = user.id;
+  await syncDown();
+  startRealtimeSync();
+  renderPage(currentPage);
+}
+
 function showAuthOverlay() {
-  const s = getSettings();
-  if (!s.supaUrl || !s.supaKey) return;
+  if (!supaConfigured()) return;
   document.getElementById('authOverlay').classList.add('open');
 }
 
@@ -4386,8 +4429,7 @@ function updateAuthUI(loggedIn) {
   const statusEl  = document.getElementById('supaStatus');
   const loginBtn  = document.getElementById('supaLoginBtn');
   const logoutBtn = document.getElementById('supaLogoutBtn');
-  const s = getSettings();
-  const configured = !!(s.supaUrl && s.supaKey);
+  const configured = supaConfigured();
 
   if (loggedIn && currentUser) {
     if (userBar)  userBar.style.display  = 'flex';
@@ -4448,6 +4490,7 @@ async function authLogin() {
   currentUser = data.user;
   updateAuthUI(true);
   await syncDown();
+  startRealtimeSync();
   renderPage(currentPage);
   toast('ログインしました ✓');
 }
@@ -4460,15 +4503,38 @@ async function authSignup() {
   const pass  = document.getElementById('authPass').value;
   if (!email || !pass) { document.getElementById('authError').textContent = 'メールアドレスとパスワードを入力してください'; return; }
   if (pass.length < 6) { document.getElementById('authError').textContent = 'パスワードは6文字以上にしてください'; return; }
-  const { error } = await supaClient.auth.signUp({ email, password: pass });
+  const { data, error } = await supaClient.auth.signUp({ email, password: pass });
   if (error) { document.getElementById('authError').textContent = error.message; return; }
-  document.getElementById('authMsg').textContent = '確認メールを送信しました。メールを確認してからログインしてください。';
+  if (data.session) {
+    // メール確認オフ → そのままログイン
+    currentUser = data.user;
+    updateAuthUI(true);
+    await syncUp();          // この端末の現データを初期保存
+    startRealtimeSync();
+    renderPage(currentPage);
+    toast('アカウントを作成してログインしました ✓');
+  } else {
+    document.getElementById('authMsg').textContent = '確認メールを送信しました。メールを確認してからログインしてください。';
+  }
+}
+
+async function authGoogle() {
+  if (!supaClient) { document.getElementById('authError').textContent = 'Supabaseが未設定です'; return; }
+  document.getElementById('authError').textContent = '';
+  const { error } = await supaClient.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.href.split('#')[0] },  // 今のページに戻す
+  });
+  if (error) { document.getElementById('authError').textContent = error.message; }
+  // 成功時はGoogleへリダイレクト → 戻ってきたら onAuthStateChange が拾う
 }
 
 async function authLogout() {
   if (!supaClient) return;
+  stopRealtimeSync();
   await supaClient.auth.signOut();
   currentUser = null;
+  _authedUserId = null;
   updateAuthUI(false);
   toast('ログアウトしました');
 }
@@ -4494,7 +4560,9 @@ function copySetupSQL() {
 alter table user_data enable row level security;
 create policy "own" on user_data for all
   using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);`;
+  with check (auth.uid() = user_id);
+-- 端末間リアルタイム反映を有効化
+alter publication supabase_realtime add table user_data;`;
   navigator.clipboard.writeText(sql).then(() => toast('SQLをコピーしました'));
 }
 
@@ -4510,6 +4578,14 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(m => m.classList.remove('open'));
   });
+  // 端末切替時の取りこぼし防止：離れるとき即アップ、戻ったとき最新を取り込む
+  document.addEventListener('visibilitychange', () => {
+    if (!currentUser) return;
+    if (document.hidden) flushSync();
+    else syncDown().then(() => renderPage(currentPage));
+  });
+  window.addEventListener('focus', () => { if (currentUser) syncDown().then(() => renderPage(currentPage)); });
+  window.addEventListener('beforeunload', () => { if (currentUser) flushSync(); });
   // ウィンドウリサイズでcanvasをリサイズ&再描画
   window.addEventListener('resize', () => {
     const cv = document.getElementById('bgCanvas');
